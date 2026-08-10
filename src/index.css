@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* Force a light/white theme site-wide: dark: variants only apply under an
+   explicit .dark ancestor (which we never add), so they stay dormant.
+   Re-enable dark mode later by adding class="dark" to <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Restore pointer cursor on interactive elements.
+   Tailwind v4 no longer sets cursor: pointer on buttons, so add it back
+   for every clickable element across the app. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+label[for],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* toast slide-in */
+@keyframes toast {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* thin custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: rgb(148 163 184 / 0.5); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(100 116 139 / 0.7); }

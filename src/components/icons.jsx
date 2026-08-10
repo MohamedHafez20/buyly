@@ -1,0 +1,49 @@
+// App icon set — re-exported from lucide-react for a consistent, professional look.
+// Names are aliased so every existing import keeps working unchanged.
+export {
+  ShoppingCart as Cart,
+  Search,
+  Menu,
+  X as Close,
+  User,
+  Plus,
+  Minus,
+  Trash2 as Trash,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  Truck,
+  ShieldCheck as Shield,
+  RefreshCw as Refresh,
+  Headset,
+  ShoppingBag as Bag,
+  Headphones,
+  Shirt,
+  Sofa,
+  Sparkles,
+  Dumbbell,
+  Book,
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Wind,
+  Footprints,
+  Watch,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Download,
+  Monitor,
+  Smartphone,
+  Share,
+  ExternalLink,
+  Sparkle,
+} from 'lucide-react'
+
+import { Heart as HeartIcon, Star as StarIcon } from 'lucide-react'
+
+// Heart and Star take a `filled` prop (wishlist state + star ratings).
+export const Heart = ({ filled, ...props }) => <HeartIcon {...props} fill={filled ? 'currentColor' : 'none'} />
+export const Star = ({ filled, ...props }) => <StarIcon {...props} fill={filled ? 'currentColor' : 'none'} />
