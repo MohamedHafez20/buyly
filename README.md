@@ -1,16 +1,118 @@
-# React + Vite
+<div align="center">
+  <img src="src/assets/logo.svg" alt="Buyly" width="120" />
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+  # Buyly
 
-Currently, two official plugins are available:
+  **A premium, installable e-commerce storefront** — a fast, app-like shopping experience built as a Progressive Web App.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+  ![React](https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white)
+  ![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+  ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
+  ![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
+</div>
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Overview
 
-## Expanding the ESLint configuration
+Buyly is a modern sportswear/fashion storefront with a clean, premium light design. It ships as a **Progressive Web App**, so visitors can install it to their device and launch it full-screen like a native app — no app store required.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+The whole experience runs on the client: product browsing, filtering, cart, wishlist, and a multi-step checkout, all backed by React state and persisted locally in the browser.
+
+> **Note:** This is a **front-end project**. Product data is bundled locally, and authentication and checkout are UI demos (no real backend, accounts, or payments).
+
+## Features
+
+- 🛍️ **Full storefront** — home, shop with filters & sorting, product detail, cart, wishlist, and checkout
+- ⚡ **Installable PWA** — service worker, web manifest, offline-ready shell, and a platform-aware install flow (Windows/desktop, Android native prompt, iOS Safari instructions)
+- 🎨 **Premium, responsive design** — sharp, editorial UI built with Tailwind CSS 4; works from mobile to desktop
+- 🛒 **Persistent cart & wishlist** — state survives refreshes via `localStorage`
+- 🔍 **Shop filtering** — by category, price range, and rating, with multiple sort options
+- 🔐 **Auth UI** — accessible login & sign-up pages (front-end demo)
+- ♿ **Accessibility-minded** — semantic markup, keyboard-navigable modal (focus trap, Escape to close), visible focus states
+- 🧭 **Client-side routing** with React Router
+- 🎯 **Consistent iconography** via `lucide-react`
+
+## Tech stack
+
+| Area | Technology |
+|------|-----------|
+| Framework | React 19 |
+| Build tool | Vite 8 |
+| Routing | React Router 7 |
+| Styling | Tailwind CSS 4 (`@tailwindcss/vite`) |
+| PWA | `vite-plugin-pwa` (Workbox) |
+| Icons | `lucide-react` |
+| Linting | ESLint 10 |
+
+## Getting started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+ and npm
+
+### Installation
+
+```bash
+git clone https://github.com/MohamedHafez20/buyly.git
+cd buyly
+npm install
+```
+
+### Development
+
+```bash
+npm run dev
+```
+
+Then open the printed URL (default `http://localhost:5173`).
+
+> The PWA service worker and manifest are only fully active in a production build. To test installation, use `npm run build` + `npm run preview` and open it in Chrome or Edge.
+
+## Available scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start the Vite dev server with hot-module reload |
+| `npm run build` | Build the optimized production bundle into `dist/` |
+| `npm run preview` | Serve the production build locally (service worker active) |
+| `npm run lint` | Run ESLint across the project |
+
+## Project structure
+
+```
+buyly/
+├── public/                 # Static assets + PWA icons (android / ios / windows), favicon
+├── src/
+│   ├── assets/             # Logo and imagery
+│   ├── components/         # Reusable UI (Navbar, Footer, ProductCard, InstallModal, …)
+│   ├── context/            # Global store (cart, wishlist, toasts)
+│   ├── data/               # Product catalog data
+│   ├── hooks/              # Custom hooks (e.g. usePwaInstall)
+│   ├── lib/                # Helpers (formatting, cart math, color swatches, PWA logic)
+│   ├── pages/              # Routed pages (Home, Shop, ProductDetail, Cart, Checkout, …)
+│   ├── App.jsx             # Route definitions
+│   ├── main.jsx            # App entry
+│   └── index.css           # Tailwind + global styles
+├── index.html
+└── vite.config.js          # Vite + PWA configuration
+```
+
+## Progressive Web App
+
+Buyly is configured as an installable PWA:
+
+- **Web manifest** with name, theme/background colors, start URL, and full icon set (including a maskable icon)
+- **Service worker** (Workbox, auto-update) generated by `vite-plugin-pwa`
+- **Branded icons** generated from the official Buyly logo
+- **Install experience** — a dedicated “Install Buyly” section and an accessible modal that detects the user’s platform and shows the right flow: the native install prompt on Chromium desktop/Android, and step-by-step Safari instructions on iOS.
+
+To try it: `npm run build && npm run preview`, open in Chrome or Edge, and use the **Install Buyly** button (or the install icon in the address bar).
+
+## Deployment
+
+The app is a static single-page application — the `dist/` folder produced by `npm run build` can be deployed to any static host (Vercel, Netlify, GitHub Pages, Cloudflare Pages, etc.).
+
+## License
+
+This project is currently unlicensed / for personal and educational use. Add a license file if you intend to distribute it.
