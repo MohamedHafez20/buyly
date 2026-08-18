@@ -1,27 +1,45 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '../context/useStore'
+import { useAuth } from '../context/useAuth'
 import AuthShell, { AuthField, SocialButton } from '../components/AuthShell'
+import { Spinner } from '../components/States'
 import { Mail, Lock, Eye, EyeOff } from '../components/icons'
 
 export default function Login() {
   const { notify } = useStore()
+  const { login } = useAuth()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const redirect = params.get('redirect') || '/'
   const [form, setForm] = useState({ email: '', password: '' })
   const [errors, setErrors] = useState({})
   const [showPw, setShowPw] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     const err = {}
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) err.email = 'Enter a valid email'
     if (form.password.length < 6) err.password = 'Password must be at least 6 characters'
     setErrors(err)
     if (Object.keys(err).length) return
-    notify('Welcome back!')
-    navigate('/')
+
+    setSubmitting(true)
+    try {
+      const user = await login(form.email, form.password)
+      notify(`Welcome back, ${user.name.split(' ')[0]}!`)
+      navigate(user.role === 'admin' && redirect === '/' ? '/admin' : redirect, { replace: true })
+    } catch (error) {
+      setSubmitting(false)
+      if (error.status === 401) {
+        setErrors({ password: 'Incorrect email or password' })
+      } else {
+        notify(error.message || 'Could not sign in')
+      }
+    }
   }
 
   return (
@@ -83,9 +101,10 @@ export default function Login() {
 
         <button
           type="submit"
-          className="w-full bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700"
+          disabled={submitting}
+          className="flex w-full items-center justify-center gap-2 bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700 disabled:opacity-60"
         >
-          Sign in
+          {submitting ? <><Spinner size={14} className="border-white/40 border-t-white" /> Signing in…</> : 'Sign in'}
         </button>
       </form>
 

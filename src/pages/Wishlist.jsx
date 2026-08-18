@@ -1,12 +1,33 @@
 import { Link } from 'react-router-dom'
 import { useStore } from '../context/useStore'
-import { products } from '../data/products'
+import { listProducts } from '../services/products'
+import { useResource } from '../lib/useResource'
 import ProductCard from '../components/ProductCard'
+import { LoadingState, ErrorState } from '../components/States'
 import { ArrowRight, Heart } from '../components/icons'
 
 export default function Wishlist() {
   const { wishlist } = useStore()
+  const { data, loading, error, reload } = useResource(() => listProducts({ status: 'active' }))
+  const products = data || []
+
   const items = products.filter((p) => wishlist.includes(p.id))
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <LoadingState label="Loading wishlist" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-24">
+        <ErrorState message={error} onRetry={reload} />
+      </div>
+    )
+  }
 
   if (items.length === 0) {
     return (

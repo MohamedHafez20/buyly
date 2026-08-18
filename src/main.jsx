@@ -5,13 +5,16 @@ import './index.css'
 import './lib/pwa' // capture beforeinstallprompt as early as possible
 import App from './App.jsx'
 import { StoreProvider } from './context/StoreContext.jsx'
+import { AuthProvider } from './context/AuthContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <StoreProvider>
-        <App />
-      </StoreProvider>
+      <AuthProvider>
+        <StoreProvider>
+          <App />
+        </StoreProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 )

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { categories } from '../data/products'
+import { useStore } from '../context/useStore'
 import { Truck, Shield, Refresh, Headset } from './icons'
 
 const perks = [
@@ -10,6 +10,7 @@ const perks = [
 ]
 
 export default function Footer() {
+  const { categories } = useStore()
   return (
     <footer className="mt-20 border-t border-neutral-200/60 bg-neutral-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">

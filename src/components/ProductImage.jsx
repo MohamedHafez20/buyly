@@ -1,5 +1,12 @@
+import { resolveImg } from '../lib/api'
+
 export default function ProductImage({ product, className = '', emojiSize = '3.5rem', imageIndex = 0 }) {
-  const imageUrl = product.images && product.images[imageIndex] ? product.images[imageIndex] : null
+  // Accept either an images[] gallery or a single `image` string (cart snapshots).
+  const raw =
+    (product.images && product.images[imageIndex]) ||
+    (imageIndex === 0 ? product.image : null) ||
+    null
+  const imageUrl = resolveImg(raw)
 
   if (imageUrl) {
     return (
@@ -24,7 +31,7 @@ export default function ProductImage({ product, className = '', emojiSize = '3.5
     accessories: ['#fff5f5', '#fae3e3'],
   }
 
-  const [from, to] = backdrops[product.category] || ['#fafafa', '#f3f4f6']
+  const [from, to] = backdrops[product.categorySlug] || backdrops[product.category] || ['#fafafa', '#f3f4f6']
   const gid = `g${product.id}`
   const rid = `r${product.id}`
 
@@ -45,8 +52,8 @@ export default function ProductImage({ product, className = '', emojiSize = '3.5
         <circle cx="50" cy="45" r="45" fill={`url(#${rid})`} />
         <ellipse cx="50" cy="74" rx="20" ry="4.5" fill="#0f172a" opacity="0.07" />
       </svg>
-      <div 
-        className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-110" 
+      <div
+        className="absolute inset-0 flex items-center justify-center transition-transform duration-500 ease-out group-hover:scale-110"
         style={{ fontSize: emojiSize }}
       >
         <span className="drop-shadow-[0_8px_16px_rgba(15,23,42,0.18)] filter transform -translate-y-1.5">

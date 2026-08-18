@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { products, categories } from '../data/products'
+import { useStore } from '../context/useStore'
+import { listProducts } from '../services/products'
+import { useResource } from '../lib/useResource'
 import { discountPct } from '../lib/format'
 import ProductCard from '../components/ProductCard'
 import StarRating from '../components/StarRating'
+import { ProductGridSkeleton, ErrorState } from '../components/States'
 import { Close } from '../components/icons'
-import { categoryIcons } from '../lib/categoryIcons'
+import { iconForCategory } from '../lib/categoryIcons'
 
 const sortOptions = [
   { value: 'featured', label: 'Featured' },
@@ -26,6 +29,10 @@ const priceBands = [
 export default function Shop() {
   const [params, setParams] = useSearchParams()
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const { categories } = useStore()
+
+  const { data, loading, error, reload } = useResource(() => listProducts({ status: 'active' }))
+  const products = useMemo(() => data || [], [data])
 
   const category = params.get('category') || 'all'
   const sort = params.get('sort') || 'featured'
@@ -41,7 +48,7 @@ export default function Shop() {
   }
 
   const filtered = useMemo(() => {
-    let list = products.filter((p) => {
+    const list = products.filter((p) => {
       if (category !== 'all' && p.category !== category) return false
       if (band !== 'all' && !priceBands.find((b) => b.id === band)?.test(p)) return false
       if (minRating && p.rating < minRating) return false
@@ -56,7 +63,7 @@ export default function Shop() {
       featured: (a, b) => (b.badge === 'Best Seller') - (a.badge === 'Best Seller'),
     }
     return [...list].sort(by[sort] || by.featured)
-  }, [category, band, minRating, q, sort])
+  }, [products, category, band, minRating, q, sort])
 
   const activeCat = categories.find((c) => c.id === category)
   const hasFilters = category !== 'all' || band !== 'all' || minRating > 0 || q
@@ -66,7 +73,7 @@ export default function Shop() {
       <FilterGroup title="Categories">
         <FilterRadio name="category" label="All Gear" checked={category === 'all'} onChange={() => update('category', 'all')} />
         {categories.map((c) => {
-          const Ic = categoryIcons[c.id]
+          const Ic = iconForCategory(c)
           return (
             <FilterRadio
               key={c.id}
@@ -117,7 +124,9 @@ export default function Shop() {
           <h1 className="text-3xl font-extrabold uppercase tracking-tight text-neutral-900">
             {activeCat ? activeCat.name : q ? `Results for "${params.get('q')}"` : 'Shop All'}
           </h1>
-          <p className="mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">{filtered.length} product{filtered.length !== 1 && 's'}</p>
+          <p className="mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+            {loading ? 'Loading…' : `${filtered.length} product${filtered.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -145,8 +154,8 @@ export default function Shop() {
         {/* sidebar */}
         <aside className="hidden w-60 shrink-0 lg:block">
           {hasFilters && (
-            <button 
-              onClick={() => setParams({}, { replace: true })} 
+            <button
+              onClick={() => setParams({}, { replace: true })}
               className="mb-5 text-[10px] font-extrabold uppercase tracking-widest text-rose-700 hover:text-rose-800 transition-colors underline underline-offset-4 cursor-pointer"
             >
               Clear All Filters
@@ -157,7 +166,11 @@ export default function Shop() {
 
         {/* grid */}
         <div className="flex-1">
-          {filtered.length ? (
+          {error ? (
+            <ErrorState message={error} onRetry={reload} />
+          ) : loading ? (
+            <ProductGridSkeleton count={9} />
+          ) : filtered.length ? (
             <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 xl:grid-cols-4">
               {filtered.map((p) => (
                 <ProductCard key={p.id} product={p} />
@@ -167,8 +180,8 @@ export default function Shop() {
             <div className="grid place-items-center border border-dashed border-neutral-200 py-24 text-center">
               <p className="text-sm font-extrabold uppercase tracking-widest text-neutral-900">No products found</p>
               <p className="mt-1.5 text-xs font-medium text-neutral-400">Try adjusting your filters or searching for something else.</p>
-              <button 
-                onClick={() => setParams({}, { replace: true })} 
+              <button
+                onClick={() => setParams({}, { replace: true })}
                 className="mt-6 bg-black px-7 py-3.5 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white hover:bg-neutral-850 transition-colors rounded-none cursor-pointer"
               >
                 Reset Filters
@@ -185,8 +198,8 @@ export default function Shop() {
           <div className="absolute inset-y-0 left-0 w-80 max-w-[85%] overflow-y-auto bg-white p-6 shadow-2xl flex flex-col">
             <div className="mb-6 flex items-center justify-between border-b border-neutral-100 pb-4">
               <h3 className="text-xs font-extrabold uppercase tracking-widest text-neutral-900">Filters</h3>
-              <button 
-                onClick={() => setFiltersOpen(false)} 
+              <button
+                onClick={() => setFiltersOpen(false)}
                 className="text-neutral-400 hover:text-black p-1 transition-colors cursor-pointer"
               >
                 <Close size={20} />
@@ -194,8 +207,8 @@ export default function Shop() {
             </div>
             {Filters}
             {hasFilters && (
-              <button 
-                onClick={() => { setParams({}, { replace: true }); setFiltersOpen(false) }} 
+              <button
+                onClick={() => { setParams({}, { replace: true }); setFiltersOpen(false) }}
                 className="mt-4 w-full border border-neutral-200 py-3 text-[10px] font-bold uppercase tracking-widest text-rose-700 hover:bg-rose-50/50 transition-colors rounded-none cursor-pointer"
               >
                 Clear All

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useReducer, useState, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
 import { StoreContext } from './storeContext'
+import { listCategories } from '../services/categories'
 
 const load = (key, fallback) => {
   try {
@@ -9,6 +10,19 @@ const load = (key, fallback) => {
     return fallback
   }
 }
+
+// Capture the minimal product snapshot a cart line needs to render.
+const snapshot = (product) => ({
+  id: product.id,
+  name: product.name,
+  slug: product.slug,
+  brand: product.brand || '',
+  price: product.price,
+  oldPrice: product.oldPrice || null,
+  image: (product.images && product.images[0]) || product.image || null,
+  category: product.category || null,
+  categorySlug: product.categorySlug || null,
+})
 
 function cartReducer(state, action) {
   switch (action.type) {
@@ -20,7 +34,7 @@ function cartReducer(state, action) {
           i.id === product.id ? { ...i, qty: Math.min(i.qty + qty, 99) } : i
         )
       }
-      return [...state, { id: product.id, qty }]
+      return [...state, { ...snapshot(product), qty }]
     }
     case 'setQty':
       return state
@@ -39,6 +53,37 @@ export function StoreProvider({ children }) {
   const [cart, dispatch] = useReducer(cartReducer, undefined, () => load('buyly.cart', []))
   const [wishlist, setWishlist] = useState(() => load('buyly.wishlist', []))
   const [toast, setToast] = useState(null)
+
+  // Categories are needed app-wide (navbar, home, shop) — fetch once here.
+  const [categories, setCategories] = useState([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesError, setCategoriesError] = useState(null)
+  const [categoriesTick, setCategoriesTick] = useState(0)
+
+  // Event-driven refresh (used by the admin category screens). Setting state
+  // here is fine — it runs from a handler, not synchronously inside an effect.
+  const reloadCategories = useCallback(() => {
+    setCategoriesLoading(true)
+    setCategoriesError(null)
+    setCategoriesTick((t) => t + 1)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    listCategories()
+      .then((data) => {
+        if (active) setCategories(data)
+      })
+      .catch((err) => {
+        if (active) setCategoriesError(err.message || 'Failed to load categories')
+      })
+      .finally(() => {
+        if (active) setCategoriesLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [categoriesTick])
 
   useEffect(() => localStorage.setItem('buyly.cart', JSON.stringify(cart)), [cart])
   useEffect(() => localStorage.setItem('buyly.wishlist', JSON.stringify(wishlist)), [wishlist])
@@ -74,7 +119,6 @@ export function StoreProvider({ children }) {
 
   const isWished = useCallback((id) => wishlist.includes(id), [wishlist])
 
-  // Memoized so the context value identity only changes when real state does.
   const value = useMemo(
     () => ({
       cart,
@@ -88,8 +132,12 @@ export function StoreProvider({ children }) {
       isWished,
       toast,
       notify,
+      categories,
+      categoriesLoading,
+      categoriesError,
+      reloadCategories,
     }),
-    [cart, cartCount, wishlist, addToCart, setQty, removeFromCart, clearCart, toggleWishlist, isWished, toast, notify],
+    [cart, cartCount, wishlist, addToCart, setQty, removeFromCart, clearCart, toggleWishlist, isWished, toast, notify, categories, categoriesLoading, categoriesError, reloadCategories],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

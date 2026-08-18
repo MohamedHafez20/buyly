@@ -1,20 +1,24 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/useStore'
+import { useAuth } from '../context/useAuth'
 import AuthShell, { AuthField, SocialButton } from '../components/AuthShell'
+import { Spinner } from '../components/States'
 import { User, Mail, Lock, Eye, EyeOff } from '../components/icons'
 
 export default function Signup() {
   const { notify } = useStore()
+  const { register } = useAuth()
   const navigate = useNavigate()
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' })
   const [errors, setErrors] = useState({})
   const [agree, setAgree] = useState(false)
   const [showPw, setShowPw] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     const err = {}
     if (!form.name.trim()) err.name = 'Enter your name'
@@ -27,8 +31,20 @@ export default function Signup() {
       notify('Please accept the Terms to continue')
       return
     }
-    notify('Account created — welcome to Buyly!')
-    navigate('/')
+
+    setSubmitting(true)
+    try {
+      const user = await register(form.name.trim(), form.email, form.password)
+      notify(`Account created — welcome, ${user.name.split(' ')[0]}!`)
+      navigate('/', { replace: true })
+    } catch (error) {
+      setSubmitting(false)
+      if (error.status === 409) {
+        setErrors({ email: 'That email is already registered' })
+      } else {
+        notify(error.message || 'Could not create your account')
+      }
+    }
   }
 
   return (
@@ -107,9 +123,10 @@ export default function Signup() {
 
         <button
           type="submit"
-          className="w-full bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700"
+          disabled={submitting}
+          className="flex w-full items-center justify-center gap-2 bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700 disabled:opacity-60"
         >
-          Create account
+          {submitting ? <><Spinner size={14} className="border-white/40 border-t-white" /> Creating…</> : 'Create account'}
         </button>
       </form>
 

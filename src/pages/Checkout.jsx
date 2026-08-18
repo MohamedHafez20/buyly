@@ -1,31 +1,25 @@
 import { useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useStore } from '../context/useStore'
+import { useAuth } from '../context/useAuth'
 import { hydrateCart } from '../lib/cart'
 import { currency } from '../lib/format'
+import { createOrder } from '../services/orders'
 import ProductImage from '../components/ProductImage'
 import OrderSummary from '../components/OrderSummary'
 import { Shield, Check } from '../components/icons'
 
-const initial = {
-  email: '', firstName: '', lastName: '', address: '', city: '', zip: '', country: 'United States',
+const initialFor = (user) => ({
+  email: user?.email || '', firstName: '', lastName: '', address: '', city: '', zip: '', country: 'United States',
   card: '', exp: '', cvc: '', name: '', method: 'card',
-}
-
-const createDemoOrderId = (email, total, items) => {
-  const seed = `${email}|${total}|${items.map((item) => `${item.id}:${item.qty}`).join(',')}`
-  let hash = 0
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) % 2176782336
-  }
-  return `BLY-${hash.toString(36).toUpperCase().padStart(6, '0').slice(0, 6)}`
-}
+})
 
 export default function Checkout() {
   const { cart, clearCart, notify } = useStore()
+  const { isAuthenticated, user } = useAuth()
   const totals = hydrateCart(cart)
   const navigate = useNavigate()
-  const [form, setForm] = useState(initial)
+  const [form, setForm] = useState(() => initialFor(user))
   const [errors, setErrors] = useState({})
   const [placing, setPlacing] = useState(false)
 
@@ -50,18 +44,40 @@ export default function Checkout() {
     return Object.keys(e).length === 0
   }
 
-  const placeOrder = (e) => {
+  const placeOrder = async (e) => {
     e.preventDefault()
     if (!validate()) {
       notify('Please fix the highlighted fields')
       return
     }
+    // Placing an order requires a real backend session.
+    if (!isAuthenticated) {
+      notify('Please sign in to complete your order')
+      navigate('/login?redirect=/checkout')
+      return
+    }
+
     setPlacing(true)
-    const orderId = createDemoOrderId(form.email, totals.total, totals.items)
-    setTimeout(() => {
+    const shippingAddress = `${form.firstName} ${form.lastName}, ${form.address}, ${form.city} ${form.zip}, ${form.country}`
+    try {
+      const order = await createOrder({
+        items: totals.items.map((i) => ({ product: i.id, quantity: i.qty })),
+        shippingAddress,
+      })
       clearCart()
-      navigate('/order-success', { state: { orderId, total: totals.total, email: form.email } })
-    }, 900)
+      navigate('/order-success', {
+        state: { orderId: order._id, total: order.total, email: form.email },
+      })
+    } catch (err) {
+      setPlacing(false)
+      if (err.status === 401) {
+        notify('Your session expired — please sign in again')
+        navigate('/login?redirect=/checkout')
+        return
+      }
+      // Stock / validation errors from the backend surface their message here.
+      notify(err.message || 'Could not place your order')
+    }
   }
 
   return (
@@ -72,8 +88,15 @@ export default function Checkout() {
         <span className="mx-2 text-neutral-300">/</span>
         <span className="text-neutral-600">Checkout</span>
       </nav>
-      
+
       <h1 className="mt-3 text-3xl font-extrabold uppercase tracking-tight text-neutral-900">Checkout</h1>
+
+      {!isAuthenticated && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border border-amber-200 bg-amber-50 p-4 text-xs font-semibold uppercase tracking-wider text-amber-800">
+          <span>You'll need to sign in to place this order.</span>
+          <Link to="/login?redirect=/checkout" className="underline underline-offset-4 hover:text-amber-950">Sign in now</Link>
+        </div>
+      )}
 
       <form onSubmit={placeOrder} className="mt-8 grid gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">

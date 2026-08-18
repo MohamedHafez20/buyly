@@ -1,5 +1,5 @@
 import { Link, useLocation, Navigate } from 'react-router-dom'
-import { currency } from '../lib/format'
+import { currency, orderRef } from '../lib/format'
 import { Check, ArrowRight, Truck } from '../components/icons'
 
 export default function OrderSuccess() {
@@ -19,7 +19,7 @@ export default function OrderSuccess() {
       <div className="mt-8 border border-neutral-200/60 bg-white p-6 text-left">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Order Number</span>
-          <span className="font-mono text-sm font-bold text-neutral-900">{state.orderId}</span>
+          <span className="font-mono text-sm font-bold text-neutral-900">{orderRef(state.orderId)}</span>
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-4">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Total Paid</span>
