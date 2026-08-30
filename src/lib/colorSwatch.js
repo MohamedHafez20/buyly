@@ -43,3 +43,18 @@ export const colorSwatch = {
 }
 
 export const swatchClass = (name) => colorSwatch[name] || 'bg-neutral-300 border-transparent'
+
+// Accepts either a color object ({ name, hex }) or a legacy name string and
+// returns the label to display / use as a selection key.
+export const colorName = (color) => (typeof color === 'string' ? color : color?.name || '')
+
+// Returns the props needed to paint a swatch for a color. When an admin-defined
+// hex is present we paint it inline; otherwise we fall back to the named Tailwind
+// swatch class so legacy, name-only colors keep their original look.
+export const swatchProps = (color) => {
+  const hex = typeof color === 'object' && color ? color.hex : ''
+  if (hex) {
+    return { className: 'border-black/10', style: { backgroundColor: hex } }
+  }
+  return { className: swatchClass(colorName(color)), style: undefined }
+}

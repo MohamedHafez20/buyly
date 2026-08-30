@@ -4,6 +4,7 @@ import { useStore } from '../context/useStore'
 import { useAuth } from '../context/useAuth'
 import { Cart, Heart, Search, Menu, Close, User, LayoutDashboard, LogOut } from './icons'
 import { iconForCategory } from '../lib/categoryIcons'
+import { isAdminStorePreview } from '../lib/adminStorePreview'
 
 const getLinkClass = (active) =>
   `text-[13px] font-medium tracking-wide py-1.5 relative transition-colors duration-250 hover:text-black cursor-pointer after:absolute after:bottom-[-4px] after:left-0 after:right-0 after:h-[1.5px] after:bg-black after:transition-transform after:duration-300 after:ease-out ${
@@ -26,6 +27,7 @@ export default function Navbar() {
 
   const params = new URLSearchParams(location.search)
   const currentCategory = params.get('category') || 'all'
+  const adminPreview = isAdminStorePreview()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 15)
@@ -62,11 +64,6 @@ export default function Navbar() {
         ? 'border-b border-neutral-100 shadow-xs py-1.5'
         : 'border-b border-neutral-100/60 py-3'
     }`}>
-      {/* announcement bar */}
-      <div className="bg-black py-2 text-center text-[10px] font-bold tracking-[0.25em] text-white uppercase select-none">
-        FREE SHIPPING ON ORDERS OVER $75 · USE CODE: FREESHIP75
-      </div>
-
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-1.5 sm:px-6">
         {/* Left Side: Brand Logo and Navigation grouped closely together */}
         <div className="flex items-center gap-8 xl:gap-12">
@@ -119,9 +116,10 @@ export default function Navbar() {
             </div>
           </form>
 
-          {/* User Account */}
+          {/* User Account — available on every breakpoint so signing in/out is
+              always a single tap, not hidden behind the mobile menu drawer. */}
           {isAuthenticated ? (
-            <div className="relative hidden sm:block" ref={menuRef}>
+            <div className="relative block" ref={menuRef}>
               <button
                 onClick={() => setMenuOpen((s) => !s)}
                 className="grid h-9 w-9 place-items-center text-neutral-500 hover:text-black rounded-full hover:bg-neutral-50 transition cursor-pointer"
@@ -135,7 +133,7 @@ export default function Navbar() {
                     <p className="text-xs font-bold text-neutral-900 truncate">{user.name}</p>
                     <p className="text-[10px] font-medium text-neutral-400 truncate">{user.email}</p>
                   </div>
-                  {isAdmin && (
+                  {isAdmin && !adminPreview && (
                     <Link
                       to="/admin"
                       onClick={() => setMenuOpen(false)}
@@ -154,7 +152,7 @@ export default function Navbar() {
               )}
             </div>
           ) : (
-            <Link to="/login" className="hidden sm:grid h-9 w-9 place-items-center text-neutral-500 hover:text-black rounded-full hover:bg-neutral-50 transition cursor-pointer" aria-label="Account">
+            <Link to="/login" className="grid h-9 w-9 place-items-center text-neutral-500 hover:text-black rounded-full hover:bg-neutral-50 transition cursor-pointer" aria-label="Sign in">
               <User size={18} />
             </Link>
           )}
@@ -255,7 +253,7 @@ export default function Navbar() {
                     <p className="text-xs font-bold text-neutral-900 truncate">{user.name}</p>
                     <p className="text-[10px] font-medium text-neutral-400 truncate">{user.email}</p>
                   </div>
-                  {isAdmin && (
+                  {isAdmin && !adminPreview && (
                     <Link
                       to="/admin"
                       onClick={() => setOpen(false)}

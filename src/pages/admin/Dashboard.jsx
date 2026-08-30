@@ -1,11 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertCircle,
   ArrowRight,
-  Boxes,
-  CalendarDays,
-  CreditCard,
   DollarSign,
   Package,
   Receipt,
@@ -16,6 +13,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react'
+import { useAuth } from '../../context/useAuth'
 import { getStats, listUsers } from '../../services/admin'
 import { listAllOrders } from '../../services/orders'
 import { listProducts } from '../../services/products'
@@ -131,6 +129,28 @@ function percentChange(current, previous) {
 
 function compactNumber(value) {
   return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value))
+}
+
+// Catmull-Rom → cubic Bézier smoothing for organic, professional-looking curves.
+function smoothPath(points) {
+  if (points.length < 2) return points.length ? `M ${points[0].x} ${points[0].y}` : ''
+  const d = [`M ${points[0].x} ${points[0].y}`]
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const p0 = points[i - 1] || points[i]
+    const p1 = points[i]
+    const p2 = points[i + 1]
+    const p3 = points[i + 2] || p2
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    d.push(`C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`)
+  }
+  return d.join(' ')
 }
 
 async function loadDashboardData(filters) {
@@ -263,6 +283,7 @@ function analyzeData(data, filters) {
   })
 
   const chartData = buildDateBuckets(range.start, range.end, filteredOrders)
+  const prevChartData = buildDateBuckets(range.previousStart, range.previousEnd, previousFilteredOrders)
   const activity = [
     ...filteredOrders.slice(0, 6).map((order) => ({
       key: `order-${order._id || order.id}`,
@@ -294,6 +315,7 @@ function analyzeData(data, filters) {
     range,
     filteredOrders,
     chartData,
+    prevChartData,
     totals: {
       revenue,
       orders: filteredOrders.length,
@@ -340,85 +362,145 @@ function DashboardSkeleton() {
   )
 }
 
-function ChangePill({ value }) {
-  if (value === null) {
-    return <span className="text-xs font-semibold text-neutral-400">No previous period</span>
+function ChangeIndicator({ value }) {
+  if (value === null || value === undefined) {
+    return <span className="text-xs font-semibold text-neutral-400">No prior data</span>
   }
   const positive = value >= 0
   const Icon = positive ? TrendingUp : TrendingDown
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${positive ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-      <Icon size={13} />
+    <span className={`inline-flex items-center gap-1 text-xs font-bold ${positive ? 'text-emerald-600' : 'text-rose-600'}`}>
+      <Icon size={14} strokeWidth={2.5} />
       {positive ? '+' : ''}{value.toFixed(1)}%
     </span>
   )
 }
 
-function KpiCard({ icon: Icon, label, value, change, context, tone }) {
+// Compact trend line for KPI cards — real series data, smoothed and gradient-filled.
+function Sparkline({ values, color = '#2563eb', width = 104, height = 44 }) {
+  const gradientId = useId()
+  const nums = values && values.length ? values : [0, 0]
+  const max = Math.max(...nums, 1)
+  const min = Math.min(...nums, 0)
+  const span = max - min || 1
+  const step = nums.length > 1 ? width / (nums.length - 1) : width
+  const points = nums.map((v, i) => ({
+    x: i * step,
+    y: clamp(height - ((v - min) / span) * (height - 6) - 3, 3, height - 3),
+  }))
+  const line = smoothPath(points)
+  const area = `${line} L ${width} ${height} L 0 ${height} Z`
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</p>
-          <p className="mt-3 font-display text-3xl font-bold tracking-tight text-neutral-950">{value}</p>
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="shrink-0" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gradientId})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// Small vertical bars for KPI cards that have a composition rather than a trend.
+function MiniBars({ segments, width = 104, height = 44 }) {
+  const max = Math.max(...segments.map((s) => s.value), 1)
+  return (
+    <div className="flex shrink-0 items-end gap-1.5" style={{ width, height }} aria-hidden="true">
+      {segments.map((segment) => (
+        <div key={segment.label} className="flex h-full flex-1 items-end" title={`${segment.label}: ${segment.value}`}>
+          <div
+            className={`w-full rounded-md ${segment.color}`}
+            style={{ height: `${clamp((segment.value / max) * 100, 8, 100)}%` }}
+          />
         </div>
-        <span className={`grid h-10 w-10 place-items-center rounded-md ${tone}`}>
-          <Icon size={19} />
-        </span>
-      </div>
-      <div className="mt-5 flex items-center justify-between gap-3 border-t border-neutral-100 pt-3">
-        {change !== undefined ? <ChangePill value={change} /> : <span className="text-xs font-bold text-neutral-500">{context}</span>}
-        {change !== undefined && <span className="text-xs font-medium text-neutral-400">{context}</span>}
+      ))}
+    </div>
+  )
+}
+
+function KpiCard({ icon: Icon, label, value, change, context, tone, accent, trend, bars }) {
+  return (
+    <Card className="p-5 transition-shadow hover:shadow-md hover:shadow-neutral-200/70">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2.5">
+            <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${tone}`}>
+              <Icon size={17} strokeWidth={2.2} />
+            </span>
+            <p className="truncate text-xs font-bold uppercase tracking-wider text-neutral-500">{label}</p>
+          </div>
+          <p className="mt-3.5 font-display text-[1.75rem] font-bold leading-none tracking-tight text-neutral-950">{value}</p>
+          <div className="mt-2.5 flex items-center gap-2">
+            {change !== undefined && <ChangeIndicator value={change} />}
+            <span className="truncate text-xs font-medium text-neutral-400">{context}</span>
+          </div>
+        </div>
+        <div className="flex h-[68px] items-center">
+          {trend ? <Sparkline values={trend} color={accent} /> : bars ? <MiniBars segments={bars} /> : null}
+        </div>
       </div>
     </Card>
   )
 }
 
-function AreaChart({ data, metric }) {
+function AreaChart({ data, prevData, metric }) {
+  const gradientId = useId()
   if (!data.some((point) => point[metric] > 0)) return <EmptyPanel label={`No ${metric} data for this period`} />
 
   const width = 760
-  const height = 270
-  const pad = { top: 18, right: 18, bottom: 36, left: 56 }
+  const height = 280
+  const pad = { top: 20, right: 16, bottom: 34, left: 52 }
   const chartWidth = width - pad.left - pad.right
   const chartHeight = height - pad.top - pad.bottom
-  const maxValue = Math.max(...data.map((point) => point[metric]), 1)
+  const prev = Array.isArray(prevData) ? prevData : []
+  const maxValue = Math.max(
+    ...data.map((point) => point[metric]),
+    ...prev.map((point) => point[metric] || 0),
+    1,
+  )
   const step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth
-  const points = data.map((point, index) => ({
-    ...point,
+  const project = (value, index) => ({
     x: data.length > 1 ? pad.left + index * step : pad.left + chartWidth / 2,
-    y: pad.top + chartHeight - (point[metric] / maxValue) * chartHeight,
-  }))
-  const line = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+    y: pad.top + chartHeight - (value / maxValue) * chartHeight,
+  })
+  const points = data.map((point, index) => ({ ...point, ...project(point[metric], index) }))
+  const prevPoints = prev.slice(0, data.length).map((point, index) => project(point[metric] || 0, index))
+  const line = smoothPath(points)
   const area = `${line} L ${points[points.length - 1].x} ${pad.top + chartHeight} L ${points[0].x} ${pad.top + chartHeight} Z`
+  const prevLine = prevPoints.length > 1 ? smoothPath(prevPoints) : ''
   const tickEvery = Math.max(1, Math.ceil(points.length / 7))
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-72 w-full">
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-72 w-full" preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`area-${metric}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#2563eb" stopOpacity="0" />
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.20" />
+          <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
         </linearGradient>
       </defs>
       {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
         const y = pad.top + chartHeight - ratio * chartHeight
         return (
           <g key={ratio}>
-            <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#e5e5e5" strokeDasharray="4 6" />
-            <text x={6} y={y + 4} className="fill-neutral-400 text-[10px] font-bold">
+            <line x1={pad.left} x2={width - pad.right} y1={y} y2={y} stroke="#eef0f2" strokeWidth="1" />
+            <text x={pad.left - 10} y={y + 4} textAnchor="end" className="fill-neutral-400 text-[11px] font-semibold">
               {metric === 'revenue' ? compactNumber(maxValue * ratio) : Math.round(maxValue * ratio)}
             </text>
           </g>
         )
       })}
-      <path d={area} fill={`url(#area-${metric})`} />
-      <path d={line} fill="none" stroke="#2563eb" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+      {prevLine && (
+        <path d={prevLine} fill="none" stroke="#cbd5e1" strokeWidth="2" strokeDasharray="5 5" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+      <path d={area} fill={`url(#${gradientId})`} />
+      <path d={line} fill="none" stroke="#4f46e5" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.75" />
       {points.map((point, index) => (
         <g key={point.key}>
-          <circle cx={point.x} cy={point.y} r="3.5" fill="#2563eb" />
           {index % tickEvery === 0 && (
-            <text x={point.x} y={height - 10} textAnchor="middle" className="fill-neutral-400 text-[10px] font-bold">
+            <text x={point.x} y={height - 12} textAnchor="middle" className="fill-neutral-400 text-[11px] font-semibold">
               {point.label}
             </text>
           )}
@@ -436,19 +518,32 @@ function BarChart({ data }) {
   return (
     <div className="flex h-72 items-end gap-1.5 overflow-hidden pt-4">
       {data.map((point, index) => (
-        <div key={point.key} className="flex min-w-0 flex-1 flex-col items-center gap-2">
-          <div className="flex h-56 w-full items-end rounded-t bg-neutral-100">
+        <div key={point.key} className="group flex min-w-0 flex-1 flex-col items-center gap-2">
+          <div className="flex h-56 w-full items-end overflow-hidden rounded-lg bg-neutral-100/70">
             <div
-              className="w-full rounded-t bg-neutral-950 transition"
+              className="w-full rounded-lg bg-gradient-to-t from-neutral-700 to-neutral-900 transition-all duration-300 group-hover:from-indigo-500 group-hover:to-indigo-600"
               style={{ height: `${Math.max(6, (point.orders / max) * 100)}%` }}
               title={`${point.orders} orders`}
             />
           </div>
-          <span className="h-4 truncate text-[10px] font-bold text-neutral-400">
+          <span className="h-4 truncate text-[10px] font-semibold text-neutral-400">
             {index % tickEvery === 0 ? point.label : ''}
           </span>
         </div>
       ))}
+    </div>
+  )
+}
+
+function ChartLegend() {
+  return (
+    <div className="flex items-center gap-4 text-[11px] font-bold text-neutral-500">
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-2 w-4 rounded-full bg-indigo-600" /> This period
+      </span>
+      <span className="inline-flex items-center gap-1.5">
+        <span className="h-0.5 w-4 rounded-full border-t-2 border-dashed border-neutral-300" /> Previous
+      </span>
     </div>
   )
 }
@@ -492,6 +587,7 @@ function InventoryChart({ totals }) {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [filters, setFiltersState] = useState({ period: '7d', status: 'all', category: 'all', product: 'all' })
   const setFilters = (patch) => setFiltersState((current) => ({ ...current, ...patch }))
   const { data, loading, error, reload } = useResource(() => loadDashboardData(filters), [
@@ -512,8 +608,10 @@ export default function Dashboard() {
       label: 'Revenue',
       value: currency(model.totals.revenue),
       change: model.changes.revenue,
-      context: 'vs previous period',
-      tone: 'bg-emerald-50 text-emerald-700',
+      context: 'vs previous',
+      tone: 'bg-emerald-50 text-emerald-600',
+      accent: '#10b981',
+      trend: model.chartData.map((point) => point.revenue),
     },
     {
       icon: Receipt,
@@ -521,28 +619,39 @@ export default function Dashboard() {
       value: model.totals.orders,
       change: model.changes.orders,
       context: `${model.totals.completedOrders} completed`,
-      tone: 'bg-sky-50 text-sky-700',
+      tone: 'bg-indigo-50 text-indigo-600',
+      accent: '#4f46e5',
+      trend: model.chartData.map((point) => point.orders),
     },
     {
       icon: Package,
       label: 'Products',
       value: model.totals.products,
-      context: `${model.totals.activeProducts} active, ${model.totals.outOfStockProducts} out`,
-      tone: 'bg-violet-50 text-violet-700',
+      context: `${model.totals.activeProducts} active · ${model.totals.outOfStockProducts} out`,
+      tone: 'bg-violet-50 text-violet-600',
+      bars: [
+        { label: 'In stock', value: model.totals.inStockProducts, color: 'bg-emerald-400' },
+        { label: 'Low stock', value: model.totals.lowStockProducts, color: 'bg-amber-400' },
+        { label: 'Out of stock', value: model.totals.outOfStockProducts, color: 'bg-rose-400' },
+      ],
     },
     {
       icon: Users,
       label: 'Customers',
       value: model.totals.customers,
-      context: `${model.totals.newCustomers} new, ${model.totals.returningCustomers} returning`,
-      tone: 'bg-amber-50 text-amber-700',
+      context: `${model.totals.newCustomers} new · ${model.totals.returningCustomers} returning`,
+      tone: 'bg-amber-50 text-amber-600',
+      bars: [
+        { label: 'New', value: model.totals.newCustomers, color: 'bg-amber-400' },
+        { label: 'Returning', value: model.totals.returningCustomers, color: 'bg-amber-300' },
+      ],
     },
   ]
 
   return (
     <div className="space-y-7">
       <PageHeader
-        title="Dashboard"
+        title={user?.name ? `Welcome back, ${user.name.split(' ')[0]}` : 'Dashboard'}
         subtitle={`Business performance, order activity, and inventory health for ${periodLabel.toLowerCase()}.`}
       >
         <Link to="/admin/products/new" className={secondaryBtnCls}>
@@ -594,10 +703,14 @@ export default function Dashboard() {
         {kpis.map((kpi) => <KpiCard key={kpi.label} {...kpi} />)}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid gap-5 xl:grid-cols-[1.5fr_1fr]">
         <Card className="p-5">
-          <SectionTitle title="Revenue trend" subtitle="Recognized revenue from non-cancelled orders." />
-          <AreaChart data={model.chartData} metric="revenue" />
+          <SectionTitle
+            title="Revenue trend"
+            subtitle="Recognized revenue from non-cancelled orders."
+            action={<ChartLegend />}
+          />
+          <AreaChart data={model.chartData} prevData={model.prevChartData} metric="revenue" />
         </Card>
         <Card className="p-5">
           <SectionTitle title="Order volume" subtitle="Orders created over the selected period." />
@@ -607,41 +720,38 @@ export default function Dashboard() {
 
       <section className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <Card className="overflow-hidden">
-          <div className="border-b border-neutral-200 px-5 py-4">
+          <div className="flex items-center justify-between gap-3 border-b border-neutral-200 px-5 py-4">
             <SectionTitle title="Top products" subtitle="Best-performing items based on order line revenue." />
+            <Link to="/admin/products" className="shrink-0 text-sm font-bold text-neutral-500 hover:text-neutral-950">View all</Link>
           </div>
           {model.topProducts.length === 0 ? (
             <div className="p-5"><EmptyPanel label="No product sales for this period" /></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left">
-                <thead>
-                  <tr className={tableHeadCls}>
-                    <th className="px-5 py-3">Product</th>
-                    <th className="px-5 py-3">Units sold</th>
-                    <th className="px-5 py-3">Revenue</th>
-                    <th className="px-5 py-3">Stock</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100">
-                  {model.topProducts.map((product) => (
-                    <tr key={product.id} className={tableRowCls}>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 text-neutral-400">
-                            {resolveImg(product.image) ? <img src={resolveImg(product.image)} alt="" className="h-full w-full object-cover" /> : <ShoppingBag size={16} />}
-                          </div>
-                          <span className="font-bold text-neutral-900">{product.name}</span>
+            <ul className="divide-y divide-neutral-100">
+              {model.topProducts.map((product, index) => {
+                const maxRevenue = Math.max(...model.topProducts.map((item) => item.revenue), 1)
+                return (
+                  <li key={product.id} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-neutral-50/70">
+                    <span className="w-4 shrink-0 text-center text-sm font-bold text-neutral-300">{index + 1}</span>
+                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-neutral-200 bg-neutral-50 text-neutral-400">
+                      {resolveImg(product.image) ? <img src={resolveImg(product.image)} alt="" className="h-full w-full object-cover" /> : <ShoppingBag size={18} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <p className="truncate font-bold text-neutral-900">{product.name}</p>
+                        <span className="shrink-0 font-bold text-neutral-950">{currency(product.revenue)}</span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100">
+                          <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600" style={{ width: `${(product.revenue / maxRevenue) * 100}%` }} />
                         </div>
-                      </td>
-                      <td className="px-5 py-4 font-semibold text-neutral-600">{product.units}</td>
-                      <td className="px-5 py-4 font-bold text-neutral-950">{currency(product.revenue)}</td>
-                      <td className="px-5 py-4 text-neutral-600">{product.stock}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <span className="shrink-0 text-xs font-semibold text-neutral-400">{product.units} sold · {product.stock} in stock</span>
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
           )}
         </Card>
 
@@ -663,7 +773,7 @@ export default function Dashboard() {
                       <span className="text-sm font-bold text-neutral-950">{currency(category.revenue)}</span>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
-                      <div className="h-full rounded-full bg-neutral-950" style={{ width: `${(category.revenue / maxRevenue) * 100}%` }} />
+                      <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600" style={{ width: `${(category.revenue / maxRevenue) * 100}%` }} />
                     </div>
                     <p className="mt-2 text-xs font-medium text-neutral-500">{category.units} units sold · {category.products} products</p>
                   </div>

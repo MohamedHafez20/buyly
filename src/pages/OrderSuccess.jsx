@@ -1,19 +1,28 @@
 import { Link, useLocation, Navigate } from 'react-router-dom'
 import { currency, orderRef } from '../lib/format'
-import { Check, ArrowRight, Truck } from '../components/icons'
+import { Check, ArrowRight, Truck, AlertTriangle } from '../components/icons'
 
 export default function OrderSuccess() {
   const { state } = useLocation()
   if (!state?.orderId) return <Navigate to="/" replace />
+  const isFailed = state.paymentFailed
 
   return (
     <div className="mx-auto max-w-xl px-4 py-20 text-center bg-white">
-      <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-        <Check size={26} />
+      <div className={`mx-auto grid h-16 w-16 place-items-center rounded-full ${
+        isFailed ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+      }`}>
+        {isFailed ? <AlertTriangle size={26} /> : <Check size={26} />}
       </div>
-      <h1 className="mt-6 text-3xl font-extrabold uppercase tracking-tight text-neutral-900">Order Confirmed</h1>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-        Thank you for your purchase. A confirmation has been sent to <strong className="text-neutral-750 font-bold normal-case">{state.email}</strong>.
+      <h1 className="mt-6 text-3xl font-extrabold uppercase tracking-tight text-neutral-900">
+        {isFailed ? 'Order Received' : 'Order Confirmed'}
+      </h1>
+      <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-neutral-450">
+        {isFailed ? (
+          <span>Your order was received, but payment authorization failed. It remains <strong className="text-amber-600">Pending Payment</strong>.</span>
+        ) : (
+          <span>Thank you for your purchase. A confirmation has been sent to <strong className="text-neutral-750 font-bold normal-case">{state.email}</strong>.</span>
+        )}
       </p>
 
       <div className="mt-8 border border-neutral-200/60 bg-white p-6 text-left">
@@ -22,7 +31,9 @@ export default function OrderSuccess() {
           <span className="font-mono text-sm font-bold text-neutral-900">{orderRef(state.orderId)}</span>
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-4">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">Total Paid</span>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-400">
+            {isFailed ? 'Amount Due' : 'Total Paid'}
+          </span>
           <span className="text-lg font-black text-neutral-900">{currency(state.total)}</span>
         </div>
         <div className="mt-5 flex items-center gap-3 bg-neutral-50 p-4 text-xs font-semibold uppercase tracking-wider text-neutral-600">

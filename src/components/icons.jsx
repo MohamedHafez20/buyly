@@ -11,6 +11,7 @@ export {
   Trash2 as Trash,
   ArrowRight,
   ArrowLeft,
+  ArrowRightLeft,
   Check,
   Truck,
   ShieldCheck as Shield,
@@ -56,8 +57,13 @@ export {
   TrendingUp,
   DollarSign,
   Boxes,
+  History,
   Filter,
   Save,
+  Globe,
+  CreditCard,
+  Tag,
+  Megaphone,
 } from 'lucide-react'
 
 import { Heart as HeartIcon, Star as StarIcon } from 'lucide-react'

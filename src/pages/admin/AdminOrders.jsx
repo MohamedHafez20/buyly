@@ -20,7 +20,7 @@ const statusSelectCls = {
 export default function AdminOrders() {
   const { notify } = useStore()
   const { data, loading, error, reload, setData } = useResource(() => listAllOrders())
-  const orders = data || []
+  const orders = useMemo(() => data || [], [data])
   const [expanded, setExpanded] = useState(null)
   const [updatingId, setUpdatingId] = useState(null)
   const [q, setQ] = useState('')
@@ -132,15 +132,49 @@ export default function AdminOrders() {
                                 <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Items summary</h3>
                                 <ul className="mt-3 divide-y divide-neutral-100 rounded-lg border border-neutral-200 bg-white p-4">
                                   {(order.items || []).map((item, index) => (
-                                    <li key={index} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-                                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-neutral-200 bg-neutral-50 text-neutral-400">
-                                        <Bag size={14} />
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <p className="truncate text-sm font-bold text-neutral-900">{item.name}</p>
-                                        <p className="text-xs text-neutral-500">{currency(item.price)} x {item.quantity}</p>
-                                      </div>
-                                      <span className="font-bold text-neutral-950">{currency(item.price * item.quantity)}</span>
+                                    <li key={index} className="py-3 first:pt-0 last:pb-0">
+                                      {item.bundleTierId ? (
+                                        <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
+                                          <div className="flex items-center gap-3">
+                                            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-indigo-200 bg-white text-indigo-500">
+                                              <Bag size={14} />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                              <p className="truncate text-sm font-bold text-neutral-900">
+                                                {item.name}
+                                                <span className="ml-2 rounded bg-indigo-600 px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase tracking-wider text-white">
+                                                  Bundle · Buy {item.pieces?.length || 0}
+                                                </span>
+                                              </p>
+                                              <p className="text-xs text-neutral-500">{item.bundleLabel ? `${item.bundleLabel} · ` : ''}Fixed bundle price</p>
+                                            </div>
+                                            <span className="font-bold text-neutral-950">{currency(item.bundlePrice ?? item.price)}</span>
+                                          </div>
+                                          <ul className="mt-2 space-y-0.5 pl-12">
+                                            {(item.pieces || []).map((p, i) => (
+                                              <li key={i} className="text-xs text-neutral-600">
+                                                <span className="font-semibold text-neutral-400">Piece {i + 1}:</span>{' '}
+                                                {[p.color, p.size].filter(Boolean).join(' / ') || '—'}
+                                                {p.sku ? <span className="text-neutral-400"> ({p.sku})</span> : null}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-3">
+                                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-neutral-200 bg-neutral-50 text-neutral-400">
+                                            <Bag size={14} />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-bold text-neutral-900">{item.name}</p>
+                                            <p className="text-xs text-neutral-500">
+                                              {currency(item.price)} x {item.quantity}
+                                              {(item.color || item.size) ? ` · ${[item.color, item.size].filter(Boolean).join(' / ')}` : ''}
+                                            </p>
+                                          </div>
+                                          <span className="font-bold text-neutral-950">{currency(item.price * item.quantity)}</span>
+                                        </div>
+                                      )}
                                     </li>
                                   ))}
                                 </ul>

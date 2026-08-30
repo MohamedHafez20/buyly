@@ -5,15 +5,35 @@ import { getProductBySlug, createProduct, updateProduct } from '../../services/p
 import { LoadingState, ErrorState, Spinner } from '../../components/States'
 import { PageHeader, Card } from '../../components/admin/ui'
 import ImageUploader from '../../components/admin/ImageUploader'
+import ColorsEditor from '../../components/admin/ColorsEditor'
+import VariantsEditor from '../../components/admin/VariantsEditor'
+import { reconcileVariants } from '../../lib/variants'
+import BundleOffersEditor from '../../components/admin/BundleOffersEditor'
+import { tierError, cleanBundleOffers } from '../../lib/bundles'
 import { ArrowLeft, Save } from '../../components/icons'
 
 const blank = {
   name: '', brand: '', description: '', price: '', oldPrice: '', stock: '0',
   category: '', status: 'active', badge: '', images: [],
-  colorsText: '', sizesText: '', featuresText: '',
+  colors: [], sizesText: '', featuresText: '',
+  variants: [], trackVariants: false,
+  bundleOffers: [], bundleEnabled: false,
 }
 
 const parseList = (text) => text.split(',').map((t) => t.trim()).filter(Boolean)
+
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+// Clean the editor rows into the { name, hex } shape the API stores: drop rows
+// without a name, and blank out any hex that isn't a valid color.
+const cleanColors = (colors) =>
+  colors
+    .map((c) => ({
+      name: (c.name || '').trim(),
+      hex: HEX_RE.test((c.hex || '').trim()) ? c.hex.trim().toLowerCase() : '',
+      image: (c.image || '').trim(),
+    }))
+    .filter((c) => c.name)
 
 export default function ProductForm() {
   const { id } = useParams()
@@ -44,9 +64,19 @@ export default function ProductForm() {
           status: p.status || 'active',
           badge: p.badge || '',
           images: p.images || [],
-          colorsText: (p.colors || []).join(', '),
+          colors: (p.colors || []).map((c) => ({ name: c.name || '', hex: c.hex || '', image: c.image || '' })),
           sizesText: (p.sizes || []).join(', '),
           featuresText: (p.features || []).join(', '),
+          variants: (p.variants || []).map((v) => ({ color: v.color, size: v.size, stock: v.stock })),
+          trackVariants: (p.variants || []).length > 0,
+          bundleOffers: (p.bundleOffers || []).map((b) => ({
+            id: b.id,
+            quantity: String(b.quantity),
+            bundlePrice: String(b.bundlePrice),
+            label: b.label || '',
+            active: b.active !== false,
+          })),
+          bundleEnabled: (p.bundleOffers || []).length > 0,
         })
       })
       .catch((err) => active && setLoadError(err.message || 'Failed to load product'))
@@ -58,6 +88,14 @@ export default function ProductForm() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
+  // Colors/sizes drive the variant grid; keep derived helpers in one place.
+  const sizesArr = parseList(form.sizesText)
+  const colorsForVariants = form.colors.filter((c) => (c.name || '').trim())
+  const variantRows = form.trackVariants
+    ? reconcileVariants(colorsForVariants, sizesArr, form.variants)
+    : []
+  const variantTotal = variantRows.reduce((n, v) => n + (Number(v.stock) || 0), 0)
+
   const validate = () => {
     const e = {}
     if (!form.name.trim()) e.name = 'Product name is required'
@@ -67,8 +105,24 @@ export default function ProductForm() {
       e.oldPrice = 'Enter a valid original price'
     if (form.oldPrice !== '' && Number(form.oldPrice) <= Number(form.price))
       e.oldPrice = 'Original price should be higher than price'
-    if (form.stock === '' || Number.isNaN(Number(form.stock)) || Number(form.stock) < 0)
+    // Product-level stock is derived from the variant grid when tracking is on.
+    if (!form.trackVariants && (form.stock === '' || Number.isNaN(Number(form.stock)) || Number(form.stock) < 0))
       e.stock = 'Enter a valid stock quantity'
+    if (form.trackVariants && variantRows.length === 0)
+      e.variants = 'Add at least one color and one size to build variants, or turn off per-variant tracking'
+    if (form.bundleEnabled) {
+      const basePrice = Number(form.price)
+      const seenQty = new Set()
+      for (const t of form.bundleOffers) {
+        const er = tierError(t, basePrice)
+        if (er) { e.bundleOffers = er; break }
+        const q = Number(t.quantity)
+        if (seenQty.has(q)) { e.bundleOffers = `Duplicate quantity ${q} — each tier must be unique`; break }
+        seenQty.add(q)
+      }
+      if (!e.bundleOffers && cleanBundleOffers(form.bundleOffers).length === 0)
+        e.bundleOffers = 'Add at least one bundle tier, or turn off Bundle offer'
+    }
     if (!form.category) e.category = 'Choose a category'
     if (form.images.length === 0) e.images = 'Add at least one product image'
     setErrors(e)
@@ -88,14 +142,17 @@ export default function ProductForm() {
       description: form.description.trim(),
       price: Number(form.price),
       oldPrice: form.oldPrice === '' ? null : Number(form.oldPrice),
-      stock: Number(form.stock),
+      // When tracking per variant, the server derives stock from the grid sum.
+      stock: form.trackVariants ? variantTotal : Number(form.stock),
       category: form.category,
       status: form.status,
       badge: form.badge.trim() || null,
       images: form.images,
-      colors: parseList(form.colorsText),
+      colors: cleanColors(form.colors),
       sizes: parseList(form.sizesText),
       features: parseList(form.featuresText),
+      variants: form.trackVariants ? variantRows : [],
+      bundleOffers: form.bundleEnabled ? cleanBundleOffers(form.bundleOffers) : [],
     }
     try {
       if (isEdit) {
@@ -203,32 +260,68 @@ export default function ProductForm() {
               <h2 className="mb-4 font-display text-sm font-extrabold uppercase tracking-wider text-neutral-900 dark:text-white">
                 Variants & options
               </h2>
+              <Field label="Colors" className="mb-4.5">
+                <ColorsEditor
+                  value={form.colors}
+                  onChange={(colors) => setForm((f) => ({ ...f, colors }))}
+                />
+              </Field>
               <div className="grid gap-4.5 sm:grid-cols-2">
-                <Field label="Colors (comma separated)">
-                  <input 
-                    value={form.colorsText} 
-                    onChange={set('colorsText')} 
-                    className={inputCls()} 
-                    placeholder="e.g. Jet Black, Pure White" 
-                  />
-                </Field>
                 <Field label="Sizes (comma separated)">
-                  <input 
-                    value={form.sizesText} 
-                    onChange={set('sizesText')} 
-                    className={inputCls()} 
-                    placeholder="e.g. S, M, L, XL" 
+                  <input
+                    value={form.sizesText}
+                    onChange={set('sizesText')}
+                    className={inputCls()}
+                    placeholder="e.g. S, M, L, XL"
                   />
                 </Field>
-                <Field label="Features (comma separated)" className="sm:col-span-2">
-                  <input 
-                    value={form.featuresText} 
-                    onChange={set('featuresText')} 
-                    className={inputCls()} 
-                    placeholder="e.g. Moisture-wicking fabric, Anti-odor treatment, Reflector lines" 
+                <Field label="Features (comma separated)">
+                  <input
+                    value={form.featuresText}
+                    onChange={set('featuresText')}
+                    className={inputCls()}
+                    placeholder="e.g. Moisture-wicking fabric, Anti-odor treatment"
                   />
                 </Field>
               </div>
+
+              <div className="mt-5 border-t border-neutral-200/60 dark:border-neutral-800/40 pt-5">
+                <h3 className="mb-3 text-[10px] font-extrabold uppercase tracking-widest text-neutral-400 dark:text-neutral-500">
+                  Inventory by variant
+                </h3>
+                <VariantsEditor
+                  enabled={form.trackVariants}
+                  onToggle={(on) => setForm((f) => ({ ...f, trackVariants: on }))}
+                  colors={colorsForVariants}
+                  sizes={sizesArr}
+                  value={form.variants}
+                  onChange={(variants) => setForm((f) => ({ ...f, variants }))}
+                />
+                {errors.variants && (
+                  <p className="mt-2.5 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                    {errors.variants}
+                  </p>
+                )}
+              </div>
+            </Card>
+
+            {/* Bundle Offers Card */}
+            <Card className="p-6">
+              <h2 className="mb-4 font-display text-sm font-extrabold uppercase tracking-wider text-neutral-900 dark:text-white">
+                Bundle offers
+              </h2>
+              <BundleOffersEditor
+                enabled={form.bundleEnabled}
+                onToggle={(on) => setForm((f) => ({ ...f, bundleEnabled: on }))}
+                value={form.bundleOffers}
+                onChange={(bundleOffers) => setForm((f) => ({ ...f, bundleOffers }))}
+                basePrice={Number(form.price) || 0}
+              />
+              {errors.bundleOffers && (
+                <p className="mt-2.5 text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                  {errors.bundleOffers}
+                </p>
+              )}
             </Card>
           </div>
 
@@ -264,14 +357,20 @@ export default function ProductForm() {
                   />
                 </Field>
                 <Field label="Stock quantity" error={errors.stock}>
-                  <input 
-                    type="number" 
-                    min="0" 
-                    value={form.stock} 
-                    onChange={set('stock')} 
-                    className={inputCls(errors.stock)} 
-                    placeholder="40" 
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.trackVariants ? variantTotal : form.stock}
+                    onChange={set('stock')}
+                    disabled={form.trackVariants}
+                    className={`${inputCls(errors.stock)} ${form.trackVariants ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    placeholder="40"
                   />
+                  {form.trackVariants && (
+                    <span className="mt-1.5 block text-[10px] font-semibold text-neutral-400">
+                      Derived from the variant grid ({variantTotal} total)
+                    </span>
+                  )}
                 </Field>
               </div>
             </Card>

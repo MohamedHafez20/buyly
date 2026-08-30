@@ -59,6 +59,25 @@ export default function ImageUploader({ value = [], onChange, max = 6 }) {
 
   const removeAt = (index) => onChange(value.filter((_, itemIndex) => itemIndex !== index))
   const dismissPending = (tempId) => setPending((items) => items.filter((item) => item.tempId !== tempId))
+  
+  const moveLeft = (index) => {
+    if (index === 0) return
+    const next = [...value]
+    const temp = next[index]
+    next[index] = next[index - 1]
+    next[index - 1] = temp
+    onChange(next)
+  }
+
+  const moveRight = (index) => {
+    if (index === value.length - 1) return
+    const next = [...value]
+    const temp = next[index]
+    next[index] = next[index + 1]
+    next[index + 1] = temp
+    onChange(next)
+  }
+
   const atCapacity = value.length + pending.length >= max
 
   return (
@@ -83,15 +102,39 @@ export default function ImageUploader({ value = [], onChange, max = 6 }) {
                 Primary
               </span>
             )}
-            <div className="absolute inset-0 flex items-start justify-end bg-neutral-950/20 p-2 opacity-0 transition group-hover:opacity-100">
-              <button
-                type="button"
-                onClick={() => removeAt(index)}
-                className="grid h-8 w-8 place-items-center rounded-md bg-white text-neutral-600 shadow-md transition hover:bg-rose-600 hover:text-white"
-                aria-label="Remove image"
-              >
-                <Close size={14} />
-              </button>
+            <div className="absolute inset-0 flex flex-col justify-between bg-neutral-950/30 p-2 opacity-0 transition group-hover:opacity-100">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex gap-1">
+                  {index > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => moveLeft(index)}
+                      className="grid h-8 w-8 place-items-center rounded-md bg-white text-neutral-600 shadow-md transition hover:bg-neutral-950 hover:text-white cursor-pointer font-bold text-sm"
+                      title="Move Left"
+                    >
+                      ←
+                    </button>
+                  )}
+                  {index < value.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => moveRight(index)}
+                      className="grid h-8 w-8 place-items-center rounded-md bg-white text-neutral-600 shadow-md transition hover:bg-neutral-950 hover:text-white cursor-pointer font-bold text-sm"
+                      title="Move Right"
+                    >
+                      →
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeAt(index)}
+                  className="grid h-8 w-8 place-items-center rounded-md bg-white text-neutral-600 shadow-md transition hover:bg-rose-600 hover:text-white cursor-pointer"
+                  aria-label="Remove image"
+                >
+                  <Close size={14} />
+                </button>
+              </div>
             </div>
           </div>
         ))}

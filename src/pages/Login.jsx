@@ -102,7 +102,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={submitting}
-          className="flex w-full items-center justify-center gap-2 bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors hover:bg-slate-700 disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 py-3.5 text-xs font-bold uppercase tracking-[0.2em] text-white shadow-sm transition-colors hover:bg-slate-700 disabled:opacity-60"
         >
           {submitting ? <><Spinner size={14} className="border-white/40 border-t-white" /> Signing in…</> : 'Sign in'}
         </button>

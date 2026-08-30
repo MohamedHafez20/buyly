@@ -1,19 +1,23 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useState, useMemo } from 'react'
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { getProductBySlug, listProducts } from '../services/products'
 import { useStore } from '../context/useStore'
-import { currency, discountPct } from '../lib/format'
+import { useAuth } from '../context/useAuth'
+import { listProductReviews, createProductReview, deleteUserReview } from '../services/reviews'
+import { currency, discountPct, formatDate } from '../lib/format'
 import ProductImage from '../components/ProductImage'
 import ProductCard from '../components/ProductCard'
+import BundlePicker from '../components/BundlePicker'
 import StarRating from '../components/StarRating'
 import { LoadingState, ErrorState } from '../components/States'
 import { Cart, Heart, Plus, Minus, Check, Truck, Refresh, Shield, ArrowRight, ChevronDown, ChevronUp } from '../components/icons'
-import { swatchClass } from '../lib/colorSwatch'
+import { swatchProps, colorName } from '../lib/colorSwatch'
 
 // Keyed by slug (see wrapper below) so navigating between products remounts
 // with a fresh loading state instead of showing the previous product.
 function ProductDetailInner({ slug }) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { addToCart, toggleWishlist, isWished } = useStore()
 
   const [product, setProduct] = useState(null)
@@ -24,11 +28,18 @@ function ProductDetailInner({ slug }) {
 
   const [qty, setQty] = useState(1)
   const [activeImg, setActiveImg] = useState(0)
+  // When a selected color has its own image, it overrides the gallery hero.
+  // Cleared (null) to fall back to the gallery — e.g. when a thumbnail is picked.
+  const [colorImg, setColorImg] = useState(null)
   const [selectedColor, setSelectedColor] = useState('')
   const [selectedSize, setSelectedSize] = useState('')
 
   const [accordions, setAccordions] = useState({ description: true, care: false, shipping: false })
   const toggleAccordion = (tab) => setAccordions((prev) => ({ ...prev, [tab]: !prev[tab] }))
+
+  const reloadProduct = () => {
+    getProductBySlug(slug).then((p) => setProduct(p)).catch(() => {})
+  }
 
   useEffect(() => {
     let active = true
@@ -36,8 +47,26 @@ function ProductDetailInner({ slug }) {
       .then((p) => {
         if (!active) return
         setProduct(p)
-        setSelectedColor(p.colors?.[0] || '')
-        setSelectedSize(p.sizes?.[0] || '')
+        // Deep-link support: honor ?color=<name> (e.g. a swatch pressed on a
+        // product card). For variant products, land on a first in-stock combo.
+        const names = (p.colors || []).map(colorName)
+        const preferred = searchParams.get('color')
+        const vlist = p.variants || []
+        let chosenColor = ''
+        if (vlist.length) {
+          const inStockVariants = vlist.filter((v) => v.stock > 0)
+          const pick = inStockVariants.find((v) => v.color === preferred) || inStockVariants[0] || vlist[0]
+          chosenColor = pick?.color || (preferred && names.includes(preferred) ? preferred : names[0]) || ''
+          setSelectedColor(chosenColor)
+          setSelectedSize(pick?.size || p.sizes?.[0] || '')
+        } else {
+          chosenColor = preferred && names.includes(preferred) ? preferred : (names[0] || '')
+          setSelectedColor(chosenColor)
+          setSelectedSize(p.sizes?.[0] || '')
+        }
+        // If the landing color has its own image, show it as the hero.
+        const chosen = (p.colors || []).find((c) => colorName(c) === chosenColor)
+        setColorImg(chosen?.image || null)
         // Fetch related items from the same category.
         return listProducts({ category: p.category, status: 'active' }).then((list) => {
           if (active) setRelated(list.filter((x) => x.id !== p.id).slice(0, 4))
@@ -54,7 +83,7 @@ function ProductDetailInner({ slug }) {
     return () => {
       active = false
     }
-  }, [slug])
+  }, [slug, searchParams])
 
   if (loading) {
     return (
@@ -84,7 +113,35 @@ function ProductDetailInner({ slug }) {
 
   const off = discountPct(product.price, product.oldPrice)
   const wished = isWished(product.id)
-  const inStock = product.stock > 0
+
+  // Per-variant availability. For non-variant products these collapse to the
+  // existing product-level stock behavior.
+  const hasVariants = Array.isArray(product.variants) && product.variants.length > 0
+  const variantFor = (c, s) => (product.variants || []).find((v) => v.color === c && v.size === s)
+  const stockFor = (c, s) => variantFor(c, s)?.stock ?? 0
+  const colorHasStock = (c) => (product.sizes || []).some((s) => stockFor(c, s) > 0)
+  const selectedVariant = hasVariants ? variantFor(selectedColor, selectedSize) : null
+  const maxStock = hasVariants ? (selectedVariant?.stock ?? 0) : product.stock
+  const inStock = maxStock > 0
+  const canAddToCart = maxStock >= qty && qty >= 1
+  const variantArg = selectedVariant
+    ? { color: selectedVariant.color, size: selectedVariant.size, sku: selectedVariant.sku }
+    : null
+
+  // The image an admin attached to a given color name, if any.
+  const colorImageFor = (name) => (product.colors || []).find((c) => colorName(c) === name)?.image || null
+
+  // Selecting a color swaps the hero image to that color's photo (when set),
+  // and snaps the size to an in-stock one when the current size is unavailable
+  // for that color.
+  const selectColor = (name) => {
+    setSelectedColor(name)
+    setColorImg(colorImageFor(name))
+    if (hasVariants && stockFor(name, selectedSize) <= 0) {
+      const firstInStock = (product.sizes || []).find((s) => stockFor(name, s) > 0)
+      setSelectedSize(firstInStock || '')
+    }
+  }
 
   const getCareInfo = (category) => {
     switch (category) {
@@ -117,6 +174,7 @@ function ProductDetailInner({ slug }) {
             <ProductImage
               product={product}
               imageIndex={activeImg}
+              src={colorImg}
               className="h-full w-full object-cover transition-transform duration-500 hover:scale-105 cursor-zoom-in"
               emojiSize="8rem"
             />
@@ -127,9 +185,9 @@ function ProductDetailInner({ slug }) {
               {product.images.map((img, i) => (
                 <button
                   key={i}
-                  onClick={() => setActiveImg(i)}
+                  onClick={() => { setActiveImg(i); setColorImg(null) }}
                   className={`overflow-hidden border aspect-[4/5] bg-neutral-50 hover:border-black transition cursor-pointer ${
-                    activeImg === i ? 'border-black ring-1 ring-black' : 'border-neutral-200'
+                    !colorImg && activeImg === i ? 'border-black ring-1 ring-black' : 'border-neutral-200'
                   }`}
                 >
                   <ProductImage product={product} imageIndex={i} className="h-full w-full object-cover" emojiSize="2.2rem" />
@@ -179,16 +237,22 @@ function ProductDetailInner({ slug }) {
               <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-neutral-900">Color: <span className="text-neutral-500 normal-case font-semibold ml-1">{selectedColor}</span></h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.colors.map((c) => {
-                  const active = selectedColor === c
-                  const bgClass = swatchClass(c)
+                  const name = colorName(c)
+                  const active = selectedColor === name
+                  const sw = swatchProps(c)
+                  const soldOut = hasVariants && !colorHasStock(name)
                   return (
                     <button
-                      key={c}
-                      onClick={() => setSelectedColor(c)}
-                      className={`h-7 w-7 rounded-full border cursor-pointer transition-all ${bgClass} ${
+                      key={name}
+                      onClick={() => selectColor(name)}
+                      disabled={soldOut}
+                      style={sw.style}
+                      aria-label={soldOut ? `${name} (out of stock)` : name}
+                      aria-pressed={active}
+                      className={`h-7 w-7 rounded-full border transition-all ${sw.className} ${
                         active ? 'ring-2 ring-black ring-offset-2 scale-105' : 'hover:scale-105 opacity-80 hover:opacity-100'
-                      }`}
-                      title={c}
+                      } ${soldOut ? 'opacity-25 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
+                      title={soldOut ? `${name} — out of stock` : name}
                     />
                   )
                 })}
@@ -206,21 +270,39 @@ function ProductDetailInner({ slug }) {
               <div className="mt-3 grid grid-cols-4 gap-2 sm:max-w-xs">
                 {product.sizes.map((s) => {
                   const active = selectedSize === s
+                  const soldOut = hasVariants && stockFor(selectedColor, s) <= 0
                   return (
                     <button
                       key={s}
                       onClick={() => setSelectedSize(s)}
-                      className={`border py-2.5 text-xs font-bold transition-all uppercase rounded-none cursor-pointer ${
+                      disabled={soldOut}
+                      className={`border py-2.5 text-xs font-bold transition-all uppercase rounded-none ${
                         active
                           ? 'border-black bg-black text-white'
-                          : 'border-neutral-200 bg-white text-neutral-700 hover:border-black'
+                          : soldOut
+                            ? 'border-neutral-200 bg-neutral-50 text-neutral-300 line-through cursor-not-allowed'
+                            : 'border-neutral-200 bg-white text-neutral-700 hover:border-black cursor-pointer'
                       }`}
+                      title={soldOut ? `${s} — out of stock` : s}
                     >
                       {s}
                     </button>
                   )
                 })}
               </div>
+
+              {/* Per-variant stock status */}
+              {hasVariants && (
+                <p className="mt-3 text-[10px] font-extrabold uppercase tracking-wider">
+                  {!selectedVariant || selectedVariant.stock <= 0 ? (
+                    <span className="text-rose-600">This color / size is out of stock</span>
+                  ) : selectedVariant.stock <= 5 ? (
+                    <span className="text-amber-600">Hurry — only {selectedVariant.stock} left</span>
+                  ) : (
+                    <span className="text-emerald-600">In stock</span>
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -238,7 +320,7 @@ function ProductDetailInner({ slug }) {
                 </button>
                 <span className="w-6 text-center text-xs font-bold text-neutral-900">{qty}</span>
                 <button
-                  onClick={() => setQty((q) => Math.min(99, q + 1))}
+                  onClick={() => setQty((q) => Math.min(maxStock > 0 ? Math.min(99, maxStock) : 99, q + 1))}
                   className="grid h-8 w-8 place-items-center text-neutral-500 hover:text-black transition-colors"
                   aria-label="Increase quantity"
                 >
@@ -248,17 +330,17 @@ function ProductDetailInner({ slug }) {
 
               {/* Add to Cart */}
               <button
-                onClick={() => addToCart(product, qty)}
-                disabled={!inStock}
+                onClick={() => addToCart(product, qty, variantArg)}
+                disabled={!canAddToCart}
                 className="flex-1 inline-flex items-center justify-center gap-2 bg-black h-12 px-6 text-[10px] font-bold uppercase tracking-[0.2em] text-white transition-colors duration-250 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed rounded-none cursor-pointer"
               >
-                <Cart size={14} /> {inStock ? 'Add to Cart' : 'Out of Stock'}
+                <Cart size={14} /> {hasVariants && !selectedVariant ? 'Select Options' : canAddToCart ? 'Add to Cart' : 'Out of Stock'}
               </button>
 
               {/* Buy Now */}
               <button
-                onClick={() => { addToCart(product, qty); navigate('/checkout') }}
-                disabled={!inStock}
+                onClick={() => { addToCart(product, qty, variantArg); navigate('/checkout') }}
+                disabled={!canAddToCart}
                 className="flex-1 border border-neutral-300 bg-white h-12 px-6 text-[10px] font-bold uppercase tracking-[0.2em] text-black hover:bg-neutral-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed rounded-none cursor-pointer"
               >
                 Buy Now
@@ -278,6 +360,9 @@ function ProductDetailInner({ slug }) {
               </button>
             </div>
           </div>
+
+          {/* Bundle & Save offers (only when the product has active tiers) */}
+          <BundlePicker product={product} />
 
           {/* Accordion Tabs */}
           <div className="mt-8 border-t border-neutral-100 pt-3">
@@ -355,6 +440,14 @@ function ProductDetailInner({ slug }) {
         </div>
       </div>
 
+      <ReviewsSection
+        productId={product.id}
+        productSlug={product.slug}
+        productRating={product.rating}
+        productReviewsCount={product.reviews}
+        reloadProduct={reloadProduct}
+      />
+
       {/* related */}
       {related.length > 0 && (
         <section className="mt-20 border-t border-neutral-100 pt-12">
@@ -378,4 +471,222 @@ function ProductDetailInner({ slug }) {
 export default function ProductDetail() {
   const { slug } = useParams()
   return <ProductDetailInner key={slug} slug={slug} />
+}
+
+function ReviewsSection({ productId, productSlug, productRating, productReviewsCount, reloadProduct }) {
+  const { user, isAuthenticated } = useAuth()
+  const { notify } = useStore()
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  // Form state
+  const [rating, setRating] = useState(5)
+  const [comment, setComment] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [hoverRating, setHoverRating] = useState(0)
+
+  const fetchReviews = useCallback(async (isActive = () => true) => {
+    try {
+      const data = await listProductReviews(productId)
+      if (!isActive()) return
+      setReviews(data)
+      setError(null)
+    } catch (err) {
+      if (isActive()) setError(err.message || 'Failed to load reviews')
+    } finally {
+      if (isActive()) setLoading(false)
+    }
+  }, [productId])
+
+  useEffect(() => {
+    let active = true
+    queueMicrotask(() => {
+      if (!active) return
+      setLoading(true)
+      fetchReviews(() => active)
+    })
+    return () => {
+      active = false
+    }
+  }, [fetchReviews])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      await createProductReview(productId, { rating, comment })
+      notify('Review submitted successfully!')
+      setComment('')
+      setRating(5)
+      fetchReviews()
+      if (reloadProduct) reloadProduct()
+    } catch (err) {
+      notify(err.message || 'Could not submit review')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (reviewId) => {
+    if (!window.confirm('Are you sure you want to delete your review?')) return
+    try {
+      await deleteUserReview(reviewId)
+      notify('Review deleted')
+      fetchReviews()
+      if (reloadProduct) reloadProduct()
+    } catch (err) {
+      notify(err.message || 'Could not delete review')
+    }
+  }
+
+  // Calculate rating breakdown
+  const breakdown = useMemo(() => {
+    const counts = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+    reviews.forEach((r) => {
+      if (counts[r.rating] !== undefined) counts[r.rating]++
+    })
+    return counts
+  }, [reviews])
+
+  return (
+    <section className="mt-16 border-t border-neutral-100 pt-12">
+      <div className="grid gap-12 lg:grid-cols-3">
+        {/* Left: Summary */}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-xl font-extrabold tracking-tight text-neutral-900 uppercase">Customer Reviews</h2>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-4xl font-black text-neutral-900">{productRating.toFixed(1)}</span>
+              <div>
+                <StarRating value={productRating} size={18} />
+                <p className="text-[10px] font-bold text-neutral-450 uppercase tracking-wider mt-1">Based on {productReviewsCount} review{productReviewsCount !== 1 && 's'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown bars */}
+          <div className="space-y-2">
+            {[5, 4, 3, 2, 1].map((stars) => {
+              const count = breakdown[stars]
+              const total = reviews.length || 1
+              const pct = (count / total) * 100
+              return (
+                <div key={stars} className="flex items-center gap-3 text-xs font-semibold text-neutral-600">
+                  <span className="w-12 shrink-0">{stars} star{stars !== 1 && 's'}</span>
+                  <div className="h-2 flex-1 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-neutral-900 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-8 shrink-0 text-right">{count}</span>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Submit form container */}
+          <div className="border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-5 rounded-none">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-neutral-900 dark:text-white mb-4">Write a review</h3>
+            {isAuthenticated ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <span className="block text-[9px] font-extrabold tracking-wider text-neutral-400 dark:text-neutral-500 uppercase mb-2">Your Rating</span>
+                  <div className="flex gap-1 text-amber-400">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const active = star <= (hoverRating || rating)
+                      return (
+                        <button
+                          type="button"
+                          key={star}
+                          onClick={() => setRating(star)}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          className={`text-2xl cursor-pointer transition ${
+                            active ? 'text-amber-400' : 'text-neutral-250 dark:text-neutral-850'
+                          }`}
+                        >
+                          ★
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-[9px] font-extrabold tracking-wider text-neutral-400 dark:text-neutral-500 uppercase mb-2">Comment</span>
+                  <textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={3}
+                    placeholder="Describe your experience with this product..."
+                    className="w-full border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 text-neutral-950 dark:text-white px-3 py-2 text-xs font-semibold outline-none transition duration-150 focus:border-black dark:focus:border-white rounded-none"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-black dark:bg-white text-white dark:text-neutral-950 py-3 text-[10px] font-bold uppercase tracking-[0.2em] transition disabled:opacity-55 cursor-pointer rounded-none"
+                >
+                  {submitting ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </form>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-xs text-neutral-450 uppercase font-semibold tracking-wider mb-3">You must be signed in to write a review</p>
+                <Link
+                  to={`/login?redirect=/product/${productSlug}`}
+                  className="inline-block bg-black dark:bg-white text-white dark:text-neutral-950 px-6 py-3 text-[9px] font-bold uppercase tracking-wider transition-colors"
+                >
+                  Sign In
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Reviews List */}
+        <div className="lg:col-span-2 space-y-6">
+          <h2 className="text-xs font-extrabold uppercase tracking-widest text-neutral-900 dark:text-white border-b border-neutral-100 dark:border-neutral-800/40 pb-3">Reviews</h2>
+          {loading ? (
+            <p className="text-xs text-neutral-450 uppercase font-semibold tracking-wider">Loading reviews...</p>
+          ) : error ? (
+            <p className="text-xs text-rose-600 uppercase font-semibold tracking-wider py-6">{error}</p>
+          ) : reviews.length === 0 ? (
+            <p className="text-xs text-neutral-450 uppercase font-semibold tracking-wider py-6">No reviews yet for this product. Be the first to review!</p>
+          ) : (
+            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800/30">
+              {reviews.map((r) => {
+                const isOwner = user?.id === r.user || user?.role === 'admin'
+                return (
+                  <li key={r.id} className="py-5 first:pt-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-sm text-neutral-800 dark:text-neutral-200 uppercase tracking-wide">{r.name}</span>
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-semibold">{formatDate(r.createdAt)}</span>
+                        </div>
+                        <div className="mt-1.5">
+                          <StarRating value={r.rating} size={13} />
+                        </div>
+                      </div>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleDelete(r.id)}
+                          className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-rose-600 transition cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                    {r.comment && <p className="mt-3.5 text-xs text-neutral-650 dark:text-neutral-400 font-medium leading-relaxed">{r.comment}</p>}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  )
 }

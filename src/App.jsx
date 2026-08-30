@@ -18,6 +18,13 @@ import ProductForm from './pages/admin/ProductForm'
 import AdminCategories from './pages/admin/AdminCategories'
 import AdminOrders from './pages/admin/AdminOrders'
 import AdminUsers from './pages/admin/AdminUsers'
+import AdminCountries from './pages/admin/AdminCountries'
+import AdminCoupons from './pages/admin/AdminCoupons'
+import AdminSettings from './pages/admin/AdminSettings'
+import AdminReviews from './pages/admin/AdminReviews'
+import AdminInventory from './pages/admin/AdminInventory'
+import AdminAnnouncements from './pages/admin/AdminAnnouncements'
+import ViewStoreAsUser from './pages/admin/ViewStoreAsUser'
 
 export default function App() {
   return (
@@ -27,6 +34,15 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
 
       {/* Admin console (role-guarded) */}
+      <Route
+        path="/admin/view-store"
+        element={
+          <RequireAdmin>
+            <ViewStoreAsUser />
+          </RequireAdmin>
+        }
+      />
+
       <Route
         path="/admin"
         element={
@@ -42,6 +58,12 @@ export default function App() {
         <Route path="categories" element={<AdminCategories />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="countries" element={<AdminCountries />} />
+        <Route path="coupons" element={<AdminCoupons />} />
+        <Route path="settings" element={<AdminSettings />} />
+        <Route path="reviews" element={<AdminReviews />} />
+        <Route path="inventory" element={<AdminInventory />} />
+        <Route path="announcements" element={<AdminAnnouncements />} />
       </Route>
 
       <Route element={<Layout />}>

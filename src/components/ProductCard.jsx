@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/useStore'
 import { currency, discountPct } from '../lib/format'
 import ProductImage from './ProductImage'
 import StarRating from './StarRating'
 import { Heart } from './icons'
-import { swatchClass } from '../lib/colorSwatch'
+import { swatchProps, colorName } from '../lib/colorSwatch'
 
 const badgeStyles = {
   'Best Seller': 'bg-black text-white',
@@ -15,9 +15,12 @@ const badgeStyles = {
 
 export default function ProductCard({ product }) {
   const { addToCart, toggleWishlist, isWished } = useStore()
+  const navigate = useNavigate()
   const [hovered, setHovered] = useState(false)
   const off = discountPct(product.price, product.oldPrice)
   const wished = isWished(product.id)
+  // Variant products need a color/size chosen on the product page before adding.
+  const hasVariants = Array.isArray(product.variants) && product.variants.length > 0
 
   return (
     <div 
@@ -80,10 +83,10 @@ export default function ProductCard({ product }) {
 
         {/* quick add slide up */}
         <button
-          onClick={() => addToCart(product)}
+          onClick={() => (hasVariants ? navigate(`/product/${product.slug}`) : addToCart(product))}
           className="absolute inset-x-0 bottom-0 translate-y-full bg-black py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white transition-transform duration-300 ease-out hover:bg-neutral-800 group-hover:translate-y-0 rounded-none cursor-pointer"
         >
-          Quick Add
+          {hasVariants ? 'Choose Options' : 'Quick Add'}
         </button>
       </div>
 
@@ -112,18 +115,30 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Color preview dots */}
+        {/* Color swatches — press one to open the product with it pre-selected */}
         {product.colors && product.colors.length > 0 && (
           <div className="mt-2.5 flex gap-1.5 items-center">
-            {product.colors.slice(0, 3).map((c, i) => (
-              <span
-                key={i}
-                title={c}
-                className={`h-2.5 w-2.5 rounded-full border ${swatchClass(c)}`}
-              />
-            ))}
-            {product.colors.length > 3 && (
-              <span className="text-[9px] text-neutral-400 font-bold">+{product.colors.length - 3}</span>
+            {product.colors.slice(0, 4).map((c, i) => {
+              const sw = swatchProps(c)
+              const name = colorName(c)
+              return (
+                <Link
+                  key={i}
+                  to={`/product/${product.slug}?color=${encodeURIComponent(name)}`}
+                  title={name}
+                  aria-label={`View ${product.name} in ${name}`}
+                  style={sw.style}
+                  className={`h-3.5 w-3.5 rounded-full border cursor-pointer transition-transform duration-150 hover:scale-125 focus-visible:scale-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-1 ${sw.className}`}
+                />
+              )
+            })}
+            {product.colors.length > 4 && (
+              <Link
+                to={`/product/${product.slug}`}
+                className="text-[9px] text-neutral-400 font-bold hover:text-black transition-colors"
+              >
+                +{product.colors.length - 4}
+              </Link>
             )}
           </div>
         )}

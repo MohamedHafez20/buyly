@@ -20,7 +20,7 @@ export function PageHeader({ title, subtitle, children }) {
 
 export function Card({ className = '', children }) {
   return (
-    <div className={`rounded-lg border border-neutral-200 bg-white shadow-sm shadow-neutral-200/60 ${className}`}>
+    <div className={`rounded-xl border border-neutral-200/80 bg-white shadow-sm shadow-neutral-900/[0.04] ${className}`}>
       {children}
     </div>
   )
@@ -44,13 +44,13 @@ export const tableHeadCls =
 export const tableRowCls = 'text-sm transition-colors hover:bg-neutral-50/80'
 
 export const inputCls =
-  'w-full rounded-md border border-neutral-200 bg-white px-3.5 py-2.5 text-sm font-medium text-neutral-900 outline-none transition focus:border-neutral-400 focus:ring-4 focus:ring-neutral-950/5'
+  'w-full rounded-lg border border-neutral-200 bg-white px-3.5 py-2.5 text-sm font-medium text-neutral-900 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10'
 
 export const primaryBtnCls =
-  'inline-flex items-center justify-center gap-2 rounded-md bg-neutral-950 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-neutral-800 disabled:opacity-60'
+  'inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm shadow-indigo-600/25 transition hover:bg-indigo-700 disabled:opacity-60'
 
 export const secondaryBtnCls =
-  'inline-flex items-center justify-center gap-2 rounded-md border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950 disabled:opacity-60'
+  'inline-flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700 shadow-sm shadow-neutral-900/[0.03] transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-950 disabled:opacity-60'
 
 const statusConfig = {
   pending: { dot: 'bg-amber-500', bg: 'bg-amber-50 text-amber-700 border-amber-200' },

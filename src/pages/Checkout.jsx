@@ -1,29 +1,54 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useStore } from '../context/useStore'
 import { useAuth } from '../context/useAuth'
-import { hydrateCart } from '../lib/cart'
+import { useCartSummary, lineKey } from '../lib/cart'
 import { currency } from '../lib/format'
-import { createOrder } from '../services/orders'
+import { createOrder, payOrder } from '../services/orders'
+import { listCountries } from '../services/countries'
+import { getSettings } from '../services/settings'
+import { useResource } from '../lib/useResource'
 import ProductImage from '../components/ProductImage'
 import OrderSummary from '../components/OrderSummary'
+import CouponField from '../components/CouponField'
 import { Shield, Check } from '../components/icons'
 
 const initialFor = (user) => ({
-  email: user?.email || '', firstName: '', lastName: '', address: '', city: '', zip: '', country: 'United States',
-  card: '', exp: '', cvc: '', name: '', method: 'card',
+  email: user?.email || '', firstName: '', lastName: '', address: '', city: '', zip: '', country: '',
+  card: '', exp: '', cvc: '', name: '', method: '',
 })
 
+// Emoji hints for the known payment keys; unknown keys fall back to a card icon.
+const methodIcon = { card: '💳', paypal: '🅿️', cod: '💵' }
+
 export default function Checkout() {
-  const { cart, clearCart, notify } = useStore()
+  const { cart, clearCart, notify, coupon, applyCoupon, clearCoupon } = useStore()
   const { isAuthenticated, user } = useAuth()
-  const totals = hydrateCart(cart)
   const navigate = useNavigate()
   const [form, setForm] = useState(() => initialFor(user))
   const [errors, setErrors] = useState({})
   const [placing, setPlacing] = useState(false)
 
-  if (totals.items.length === 0 && !placing) return <Navigate to="/cart" replace />
+  // Countries and payment methods come from the backend — never hardcoded here.
+  const { data: countries } = useResource(() => listCountries(), [])
+  const { data: settings } = useResource(() => getSettings(), [])
+  const paymentMethods = useMemo(() => settings?.paymentMethods || [], [settings])
+
+  // The effective selection: the user's explicit choice, else the first option
+  // the backend returned. Derived at render — no defaulting effect needed.
+  const country = form.country || countries?.[0]?.name || ''
+  const method = form.method || paymentMethods[0]?.key || ''
+
+  const { summary, loading: pricing } = useCartSummary(cart, coupon, country)
+
+  // Backend-priced lines keyed by product + variant (see Cart.jsx).
+  const pricedByKey = useMemo(() => {
+    const m = {}
+    summary?.items?.forEach((p) => { m[lineKey(p)] = p })
+    return m
+  }, [summary])
+
+  if (cart.length === 0 && !placing) return <Navigate to="/cart" replace />
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
@@ -35,7 +60,7 @@ export default function Checkout() {
     if (!form.address.trim()) e.address = 'Required'
     if (!form.city.trim()) e.city = 'Required'
     if (!/^\d{4,10}$/.test(form.zip.trim())) e.zip = 'Enter a valid ZIP'
-    if (form.method === 'card') {
+    if (method === 'card') {
       if (form.card.replace(/\s/g, '').length < 15) e.card = 'Enter a valid card number'
       if (!/^\d{2}\s*\/\s*\d{2}$/.test(form.exp)) e.exp = 'MM/YY'
       if (!/^\d{3,4}$/.test(form.cvc)) e.cvc = '3-4 digits'
@@ -58,12 +83,39 @@ export default function Checkout() {
     }
 
     setPlacing(true)
-    const shippingAddress = `${form.firstName} ${form.lastName}, ${form.address}, ${form.city} ${form.zip}, ${form.country}`
+    const shippingAddress = `${form.firstName} ${form.lastName}, ${form.address}, ${form.city} ${form.zip}, ${country}`
     try {
+      // Send product + quantity (and the coupon code if the backend confirmed
+      // it valid in the summary); the backend re-prices authoritatively.
       const order = await createOrder({
-        items: totals.items.map((i) => ({ product: i.id, quantity: i.qty })),
+        items: cart.map((i) =>
+          i.bundleTierId
+            ? { product: i.id, quantity: 1, uid: i.uid, bundleTierId: i.bundleTierId, pieces: i.pieces || [] }
+            : { product: i.id, quantity: i.qty, color: i.color || '', size: i.size || '', sku: i.sku || '' },
+        ),
+        couponCode: summary?.coupon?.code || '',
         shippingAddress,
+        country,
       })
+
+      if (method === 'card') {
+        try {
+          await payOrder(order._id, {
+            cardNumber: form.card,
+            cardExpiry: form.exp,
+            cardCvc: form.cvc,
+          })
+          notify('Payment processed successfully!')
+        } catch (payErr) {
+          notify(payErr.message || 'Payment failed. Order placed as pending.')
+          clearCart()
+          navigate('/order-success', {
+            state: { orderId: order._id, total: order.total, email: form.email, paymentFailed: true },
+          })
+          return
+        }
+      }
+
       clearCart()
       navigate('/order-success', {
         state: { orderId: order._id, total: order.total, email: form.email },
@@ -123,9 +175,11 @@ export default function Checkout() {
               <input value={form.zip} onChange={set('zip')} className={inputCls(errors.zip)} />
             </Field>
             <Field label="Country" className="sm:col-span-2">
-              <select value={form.country} onChange={set('country')} className={inputCls()}>
-                {['United States', 'Canada', 'United Kingdom', 'Australia', 'Germany'].map((c) => (
-                  <option key={c}>{c}</option>
+              {/* Countries are loaded from the backend, not hardcoded. */}
+              <select value={country} onChange={set('country')} className={inputCls()}>
+                {!countries && <option>Loading…</option>}
+                {countries?.map((c) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
                 ))}
               </select>
             </Field>
@@ -134,28 +188,28 @@ export default function Checkout() {
           <Section step={3} title="Payment Method">
             <div className="sm:col-span-2">
               <div className="mb-4 flex flex-col sm:flex-row gap-2">
-                {[
-                  ['card', '💳 Credit Card'],
-                  ['paypal', '🅿️ PayPal'],
-                  ['cod', '💵 Cash on Delivery'],
-                ].map(([v, label]) => (
+                {/* Payment methods come from backend settings. */}
+                {paymentMethods.length === 0 && (
+                  <p className="text-xs text-neutral-400 font-medium py-2">Loading payment options…</p>
+                )}
+                {paymentMethods.map((m) => (
                   <button
                     type="button"
-                    key={v}
-                    onClick={() => setForm((f) => ({ ...f, method: v }))}
+                    key={m.key}
+                    onClick={() => setForm((f) => ({ ...f, method: m.key }))}
                     className={`flex-1 border px-3 h-11 text-[10px] font-bold tracking-widest uppercase transition-colors duration-150 rounded-none cursor-pointer ${
-                      form.method === v
+                      method === m.key
                         ? 'border-black bg-black text-white'
                         : 'border-neutral-200 text-neutral-500 hover:bg-neutral-50'
                     }`}
                   >
-                    {label}
+                    {methodIcon[m.key] || '💳'} {m.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {form.method === 'card' && (
+            {method === 'card' && (
               <>
                 <Field label="Card number" error={errors.card} className="sm:col-span-2">
                   <input
@@ -178,12 +232,12 @@ export default function Checkout() {
                 </Field>
               </>
             )}
-            {form.method === 'paypal' && (
+            {method === 'paypal' && (
               <p className="sm:col-span-2 text-xs text-neutral-400 py-2 font-medium">
                 You will be redirected to the secure PayPal portal to complete your transaction in the next step.
               </p>
             )}
-            {form.method === 'cod' && (
+            {method === 'cod' && (
               <p className="sm:col-span-2 text-xs text-neutral-400 py-2 font-medium">
                 Pay with cash or contactless card upon delivery of your items.
               </p>
@@ -197,27 +251,48 @@ export default function Checkout() {
 
         {/* summary sidebar */}
         <div className="lg:col-span-1">
-          <OrderSummary totals={totals}>
+          <OrderSummary totals={summary}>
             <ul className="mt-5 space-y-3.5 border-t border-neutral-100 pt-5">
-              {totals.items.map((i) => (
-                <li key={i.id} className="flex items-center gap-3">
+              {cart.map((i) => {
+                const key = lineKey(i)
+                const priced = pricedByKey[key]
+                return (
+                <li key={key} className="flex items-center gap-3">
                   <div className="relative overflow-hidden border border-neutral-100 h-12 w-10 shrink-0">
                     <ProductImage product={i} className="h-full w-full object-cover" emojiSize="1.2rem" />
                     <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-black text-[8px] font-bold text-white leading-none">
                       {i.qty}
                     </span>
                   </div>
-                  <span className="flex-1 truncate text-xs font-bold text-neutral-700 uppercase tracking-wide">{i.name}</span>
-                  <span className="text-xs font-black text-neutral-900">{currency(i.lineTotal)}</span>
+                  <span className="flex-1 truncate text-xs font-bold text-neutral-700 uppercase tracking-wide">
+                    {i.name}
+                    {i.bundleTierId ? (
+                      <span className="block text-[9px] font-bold text-emerald-600 tracking-normal">
+                        Bundle · Buy {i.bundleQuantity}
+                      </span>
+                    ) : (i.color || i.size) && (
+                      <span className="block text-[9px] font-semibold text-neutral-400 normal-case tracking-normal">
+                        {[i.color, i.size].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs font-black text-neutral-900">{priced ? currency(priced.lineTotal) : '—'}</span>
                 </li>
-              ))}
+                )
+              })}
             </ul>
+            <CouponField coupon={coupon} summary={summary} onApply={applyCoupon} onClear={clearCoupon} />
+            {summary && !summary.fulfillable && (
+              <p className="mt-4 border border-rose-200 bg-rose-50 p-3 text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                Some items are unavailable or low on stock. Update your cart to continue.
+              </p>
+            )}
             <button
               type="submit"
-              disabled={placing}
-              className="mt-6 flex w-full items-center justify-center gap-2 bg-black py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 rounded-none cursor-pointer"
+              disabled={placing || pricing || !summary?.fulfillable}
+              className="mt-6 flex w-full items-center justify-center gap-2 bg-black py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-none cursor-pointer"
             >
-              {placing ? 'Placing Order...' : <>Complete Order · {currency(totals.total)}</>}
+              {placing ? 'Placing Order...' : pricing ? 'Calculating…' : <>Complete Order · {summary ? currency(summary.total) : '—'}</>}
             </button>
             <p className="mt-3.5 flex items-center justify-center gap-1.5 text-center text-[9px] uppercase font-bold tracking-widest text-neutral-400">
               <Check size={11} className="text-emerald-600" /> Secure SSL Connection

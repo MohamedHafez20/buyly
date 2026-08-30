@@ -1,8 +1,10 @@
 import { resolveImg } from '../lib/api'
 
-export default function ProductImage({ product, className = '', emojiSize = '3.5rem', imageIndex = 0 }) {
-  // Accept either an images[] gallery or a single `image` string (cart snapshots).
+export default function ProductImage({ product, className = '', emojiSize = '3.5rem', imageIndex = 0, src = null }) {
+  // An explicit `src` (e.g. a selected color's image) wins; otherwise fall back
+  // to the images[] gallery or a single `image` string (cart snapshots).
   const raw =
+    src ||
     (product.images && product.images[imageIndex]) ||
     (imageIndex === 0 ? product.image : null) ||
     null
