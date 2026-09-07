@@ -170,7 +170,7 @@ function ProductDetailInner({ slug }) {
       <div className="mt-8 grid gap-12 lg:grid-cols-2">
         {/* Gallery */}
         <div>
-          <div className="overflow-hidden border border-neutral-100 bg-neutral-50 aspect-[4/5] relative">
+          <div className="overflow-hidden border border-neutral-200/60 bg-studio aspect-[4/5] relative">
             <ProductImage
               product={product}
               imageIndex={activeImg}
@@ -178,6 +178,11 @@ function ProductDetailInner({ slug }) {
               className="h-full w-full object-cover transition-transform duration-500 hover:scale-105 cursor-zoom-in"
               emojiSize="8rem"
             />
+            {off > 0 && (
+              <span className="absolute left-4 top-4 z-10 bg-rose-600 text-white font-black text-xs uppercase tracking-wider px-2.5 py-1">
+                {off}% OFF
+              </span>
+            )}
           </div>
           {/* Thumbnails */}
           {product.images && product.images.length > 1 && (
@@ -186,7 +191,7 @@ function ProductDetailInner({ slug }) {
                 <button
                   key={i}
                   onClick={() => { setActiveImg(i); setColorImg(null) }}
-                  className={`overflow-hidden border aspect-[4/5] bg-neutral-50 hover:border-black transition cursor-pointer ${
+                  className={`overflow-hidden border aspect-[4/5] bg-studio hover:border-black transition cursor-pointer ${
                     !colorImg && activeImg === i ? 'border-black ring-1 ring-black' : 'border-neutral-200'
                   }`}
                 >
@@ -199,8 +204,8 @@ function ProductDetailInner({ slug }) {
 
         {/* Info detail column */}
         <div className="flex flex-col">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-neutral-400">{product.brand}</p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-neutral-900 sm:text-4xl leading-tight uppercase">{product.name}</h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">{product.brand}</p>
+          <h1 className="mt-2 text-3xl font-black tracking-tight text-neutral-950 sm:text-4xl leading-tight uppercase">{product.name}</h1>
 
           <div className="mt-4 flex items-center gap-4 text-xs border-b border-neutral-100 pb-4">
             {product.reviews > 0 && <StarRating value={product.rating} showValue reviews={product.reviews} />}
@@ -220,16 +225,16 @@ function ProductDetailInner({ slug }) {
 
           {/* Pricing */}
           <div className="mt-5 flex flex-wrap items-baseline gap-3">
-            <span className="text-3xl font-black text-neutral-950">{currency(product.price)}</span>
             {product.oldPrice && (
-              <span className="text-lg line-through text-neutral-400 font-normal">{currency(product.oldPrice)}</span>
+              <span className="text-base sm:text-lg line-through text-neutral-400 font-normal">{currency(product.oldPrice)}</span>
             )}
+            <span className={`text-3xl sm:text-4xl font-black ${off > 0 ? 'text-rose-600' : 'text-neutral-950'}`}>{currency(product.price)}</span>
             {off > 0 && (
-              <span className="bg-rose-50 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-rose-700">Save {off}%</span>
+              <span className="bg-rose-600 text-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">Save {off}%</span>
             )}
           </div>
 
-          {product.description && <p className="mt-5 text-sm leading-relaxed text-neutral-500 font-medium">{product.description}</p>}
+          {product.description && <p className="mt-5 text-xs sm:text-sm leading-relaxed text-neutral-500 font-medium">{product.description}</p>}
 
           {/* Color swatches selector */}
           {product.colors && product.colors.length > 0 && (
@@ -457,7 +462,7 @@ function ProductDetailInner({ slug }) {
               View all <ArrowRight size={12} />
             </Link>
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-11 sm:gap-x-6 md:grid-cols-3 lg:grid-cols-4 xl:gap-x-7">
             {related.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}

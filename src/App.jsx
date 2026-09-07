@@ -7,6 +7,8 @@ import Cart from './pages/Cart'
 import Checkout from './pages/Checkout'
 import Wishlist from './pages/Wishlist'
 import OrderSuccess from './pages/OrderSuccess'
+import Orders from './pages/Orders'
+import Notifications from './pages/Notifications'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -24,6 +26,7 @@ import AdminSettings from './pages/admin/AdminSettings'
 import AdminReviews from './pages/admin/AdminReviews'
 import AdminInventory from './pages/admin/AdminInventory'
 import AdminAnnouncements from './pages/admin/AdminAnnouncements'
+import AdminNotifications from './pages/admin/AdminNotifications'
 import ViewStoreAsUser from './pages/admin/ViewStoreAsUser'
 
 export default function App() {
@@ -64,6 +67,7 @@ export default function App() {
         <Route path="reviews" element={<AdminReviews />} />
         <Route path="inventory" element={<AdminInventory />} />
         <Route path="announcements" element={<AdminAnnouncements />} />
+        <Route path="notifications" element={<AdminNotifications />} />
       </Route>
 
       <Route element={<Layout />}>
@@ -73,6 +77,8 @@ export default function App() {
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/wishlist" element={<Wishlist />} />
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/notifications" element={<Notifications />} />
         <Route path="/order-success" element={<OrderSuccess />} />
         <Route path="*" element={<NotFound />} />
       </Route>

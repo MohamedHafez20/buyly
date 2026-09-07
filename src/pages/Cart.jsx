@@ -38,9 +38,9 @@ export default function Cart() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <h1 className="text-3xl font-extrabold uppercase tracking-tight text-neutral-900">Shopping Cart</h1>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">{cart.length} item{cart.length !== 1 && 's'} in your cart</p>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-neutral-950">Shopping Cart</h1>
+      <p className="mt-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-neutral-400">{cart.length} item{cart.length !== 1 && 's'} in your cart</p>
 
       {error && (
         <div className="mt-6 flex items-center gap-3 border border-rose-200 bg-rose-50 p-4 text-xs font-semibold uppercase tracking-wider text-rose-700">
@@ -203,11 +203,11 @@ export default function Cart() {
             <CouponField coupon={coupon} summary={summary} onApply={applyCoupon} onClear={clearCoupon} />
             <Link
               to="/checkout"
-              className="mt-6 flex w-full items-center justify-center gap-2 bg-black py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white transition-colors hover:bg-neutral-800 rounded-none cursor-pointer"
+              className="mt-6 flex w-full items-center justify-center gap-2 bg-neutral-950 py-4 text-xs font-black uppercase tracking-[0.2em] text-white transition-all duration-200 hover:bg-neutral-800 shadow-sm hover:shadow-md rounded-none cursor-pointer"
             >
               Proceed to Checkout <ArrowRight size={14} />
             </Link>
-            <p className="mt-3 text-center text-[9px] uppercase tracking-widest text-neutral-400 font-bold">Secure checkout · 30-day exchanges</p>
+            <p className="mt-3 text-center text-[9px] uppercase tracking-widest text-neutral-400 font-bold">Secure SSL Checkout · 30-Day Returns</p>
           </OrderSummary>
         </div>
       </div>

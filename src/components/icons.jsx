@@ -64,6 +64,8 @@ export {
   CreditCard,
   Tag,
   Megaphone,
+  Bell,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 import { Heart as HeartIcon, Star as StarIcon } from 'lucide-react'

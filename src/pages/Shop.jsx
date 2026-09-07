@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useStore } from '../context/useStore'
 import { listProducts } from '../services/products'
-import { useResource } from '../lib/useResource'
 import { discountPct } from '../lib/format'
 import ProductCard from '../components/ProductCard'
 import StarRating from '../components/StarRating'
+import GenderTabs from '../components/GenderTabs'
 import { ProductGridSkeleton, ErrorState } from '../components/States'
 import { Close } from '../components/icons'
 import { iconForCategory } from '../lib/categoryIcons'
@@ -31,14 +31,46 @@ export default function Shop() {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const { categories } = useStore()
 
-  const { data, loading, error, reload } = useResource(() => listProducts({ status: 'active' }))
-  const products = useMemo(() => data || [], [data])
-
   const category = params.get('category') || 'all'
   const sort = params.get('sort') || 'featured'
   const q = (params.get('q') || '').toLowerCase()
   const band = params.get('price') || 'all'
   const minRating = Number(params.get('rating') || 0)
+  const gender = params.get('gender') || 'all'
+
+  // Gender filtering runs on the backend (?gender=men|women|all) so we only pull
+  // the relevant slice of the catalog; the remaining filters below refine that
+  // set client-side, exactly as before. A local effect (instead of the shared
+  // useResource) gives a clean loading state on every tab switch.
+  const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [reqGender, setReqGender] = useState(gender)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // Flip to the loading skeleton the moment the gender changes, before the
+  // refetch resolves. This is React's sanctioned "adjust state while rendering"
+  // pattern (not an effect), so the tab switch shows a smooth loading state.
+  if (gender !== reqGender) {
+    setReqGender(gender)
+    setLoading(true)
+    setError(null)
+  }
+
+  const reload = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    setReloadKey((k) => k + 1)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    listProducts({ status: 'active', gender })
+      .then((d) => { if (active) setProducts(d) })
+      .catch((err) => { if (active) setError(err.message || 'Something went wrong') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [gender, reloadKey])
 
   const update = (key, value) => {
     const next = new URLSearchParams(params)
@@ -119,7 +151,12 @@ export default function Shop() {
         <span className="text-neutral-600">{activeCat ? activeCat.name : 'Catalog'}</span>
       </nav>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+      {/* Gender navigation — backend-filtered, premium underline tabs */}
+      <div className="mt-5 border-b border-neutral-200">
+        <GenderTabs value={gender} onChange={(g) => update('gender', g)} />
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold uppercase tracking-tight text-neutral-900">
             {activeCat ? activeCat.name : q ? `Results for "${params.get('q')}"` : 'Shop All'}
@@ -171,7 +208,7 @@ export default function Shop() {
           ) : loading ? (
             <ProductGridSkeleton count={9} />
           ) : filtered.length ? (
-            <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-11 sm:gap-x-6 md:grid-cols-3 xl:grid-cols-4 xl:gap-x-7">
               {filtered.map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}

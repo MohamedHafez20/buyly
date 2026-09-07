@@ -12,7 +12,7 @@ export default function ProductImage({ product, className = '', emojiSize = '3.5
 
   if (imageUrl) {
     return (
-      <div className={`relative overflow-hidden bg-neutral-100 ${className}`}>
+      <div className={`relative overflow-hidden bg-studio dark:bg-neutral-900 ${className}`}>
         <img
           src={imageUrl}
           alt={product.name}

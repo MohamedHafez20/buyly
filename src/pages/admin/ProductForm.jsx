@@ -14,7 +14,7 @@ import { ArrowLeft, Save } from '../../components/icons'
 
 const blank = {
   name: '', brand: '', description: '', price: '', oldPrice: '', stock: '0',
-  category: '', status: 'active', badge: '', images: [],
+  category: '', gender: 'unisex', status: 'active', badge: '', images: [],
   colors: [], sizesText: '', featuresText: '',
   variants: [], trackVariants: false,
   bundleOffers: [], bundleEnabled: false,
@@ -61,6 +61,7 @@ export default function ProductForm() {
           oldPrice: p.oldPrice != null ? String(p.oldPrice) : '',
           stock: String(p.stock ?? 0),
           category: p.category || '',
+          gender: p.gender || 'unisex',
           status: p.status || 'active',
           badge: p.badge || '',
           images: p.images || [],
@@ -124,6 +125,7 @@ export default function ProductForm() {
         e.bundleOffers = 'Add at least one bundle tier, or turn off Bundle offer'
     }
     if (!form.category) e.category = 'Choose a category'
+    if (!['men', 'women', 'unisex'].includes(form.gender)) e.gender = 'Choose a gender'
     if (form.images.length === 0) e.images = 'Add at least one product image'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -145,6 +147,7 @@ export default function ProductForm() {
       // When tracking per variant, the server derives stock from the grid sum.
       stock: form.trackVariants ? variantTotal : Number(form.stock),
       category: form.category,
+      gender: form.gender,
       status: form.status,
       badge: form.badge.trim() || null,
       images: form.images,
@@ -219,15 +222,26 @@ export default function ProductForm() {
                   />
                 </Field>
                 <Field label="Category" error={errors.category}>
-                  <select 
-                    value={form.category} 
-                    onChange={set('category')} 
+                  <select
+                    value={form.category}
+                    onChange={set('category')}
                     className={inputCls(errors.category)}
                   >
                     <option value="">Select a category…</option>
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
+                  </select>
+                </Field>
+                <Field label="Gender" error={errors.gender} className="sm:col-span-2">
+                  <select
+                    value={form.gender}
+                    onChange={set('gender')}
+                    className={inputCls(errors.gender)}
+                  >
+                    <option value="men">Men</option>
+                    <option value="women">Women</option>
+                    <option value="unisex">Unisex (both)</option>
                   </select>
                 </Field>
                 <Field label="Description" className="sm:col-span-2">

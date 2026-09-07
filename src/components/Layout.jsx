@@ -5,6 +5,7 @@ import Footer from './Footer'
 import Toast from './Toast'
 import AdminStorePreviewBar from './AdminStorePreviewBar'
 import AnnouncementBar from './AnnouncementBar'
+import { NotificationsProvider } from '../context/NotificationsProvider'
 
 export default function Layout() {
   const { pathname } = useLocation()
@@ -13,15 +14,17 @@ export default function Layout() {
   }, [pathname])
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <AnnouncementBar />
-      <Navbar />
-      <main className="flex-1">
-        <Outlet />
-      </main>
-      <Footer />
-      <AdminStorePreviewBar />
-      <Toast />
-    </div>
+    <NotificationsProvider>
+      <div className="flex min-h-screen flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+        <AnnouncementBar />
+        <Navbar />
+        <main className="flex-1">
+          <Outlet />
+        </main>
+        <Footer />
+        <AdminStorePreviewBar />
+        <Toast />
+      </div>
+    </NotificationsProvider>
   )
 }

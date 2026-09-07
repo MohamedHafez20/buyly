@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Bell, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useAuth } from '../../context/useAuth'
+import { AdminNotificationsProvider } from '../../context/AdminNotificationsProvider'
+import AdminNotificationBell from './AdminNotificationBell'
 import {
   Close,
   LayoutDashboard,
@@ -19,12 +21,14 @@ import {
   Eye,
   Megaphone,
   Bag,
+  Bell,
   ChevronDown,
 } from '../icons'
 
 const sidebarItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/orders', label: 'Orders', icon: Receipt },
+  { to: '/admin/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/products', label: 'Products', icon: Package },
   { to: '/admin/categories', label: 'Categories', icon: Tags },
   { to: '/admin/users', label: 'Customers', icon: Users },
@@ -154,6 +158,7 @@ export default function AdminLayout() {
   )
 
   return (
+    <AdminNotificationsProvider>
     <div className="flex min-h-screen bg-gradient-to-b from-neutral-50 to-neutral-100 text-neutral-950">
       <aside className="hidden w-64 shrink-0 lg:block">
         <div className="sticky top-0 h-screen w-64">{SidebarInner}</div>
@@ -207,13 +212,7 @@ export default function AdminLayout() {
               <Eye size={15} />
               View Store
             </Link>
-            <button
-              aria-label="Notifications"
-              className="relative rounded-xl border border-neutral-200 bg-white p-2.5 text-neutral-500 shadow-sm transition hover:border-neutral-300 hover:bg-neutral-50 hover:text-neutral-950"
-            >
-              <Bell size={18} />
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white" />
-            </button>
+            <AdminNotificationBell />
 
             <span className="hidden h-7 w-px bg-neutral-200 sm:block" />
 
@@ -281,5 +280,6 @@ export default function AdminLayout() {
         </main>
       </div>
     </div>
+    </AdminNotificationsProvider>
   )
 }

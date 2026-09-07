@@ -133,7 +133,7 @@ export default function Checkout() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       {/* breadcrumbs */}
       <nav className="text-[10px] font-bold tracking-widest uppercase text-neutral-400">
         <Link to="/cart" className="hover:text-black transition-colors">Cart</Link>
@@ -141,12 +141,12 @@ export default function Checkout() {
         <span className="text-neutral-600">Checkout</span>
       </nav>
 
-      <h1 className="mt-3 text-3xl font-extrabold uppercase tracking-tight text-neutral-900">Checkout</h1>
+      <h1 className="mt-3 text-3xl sm:text-4xl font-black uppercase tracking-tight text-neutral-950">Checkout</h1>
 
       {!isAuthenticated && (
         <div className="mt-4 flex flex-wrap items-center gap-2 border border-amber-200 bg-amber-50 p-4 text-xs font-semibold uppercase tracking-wider text-amber-800">
           <span>You'll need to sign in to place this order.</span>
-          <Link to="/login?redirect=/checkout" className="underline underline-offset-4 hover:text-amber-950">Sign in now</Link>
+          <Link to="/login?redirect=/checkout" className="underline underline-offset-4 hover:text-amber-950 font-bold">Sign in now</Link>
         </div>
       )}
 
@@ -290,12 +290,12 @@ export default function Checkout() {
             <button
               type="submit"
               disabled={placing || pricing || !summary?.fulfillable}
-              className="mt-6 flex w-full items-center justify-center gap-2 bg-black py-4 text-[10px] font-extrabold uppercase tracking-[0.2em] text-white transition-colors hover:bg-neutral-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-none cursor-pointer"
+              className="mt-6 flex w-full items-center justify-center gap-2 bg-neutral-950 py-4 text-xs font-black uppercase tracking-[0.2em] text-white transition-all duration-200 hover:bg-neutral-800 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed rounded-none cursor-pointer"
             >
               {placing ? 'Placing Order...' : pricing ? 'Calculating…' : <>Complete Order · {summary ? currency(summary.total) : '—'}</>}
             </button>
             <p className="mt-3.5 flex items-center justify-center gap-1.5 text-center text-[9px] uppercase font-bold tracking-widest text-neutral-400">
-              <Check size={11} className="text-emerald-600" /> Secure SSL Connection
+              <Check size={11} className="text-emerald-600" /> 256-Bit Encrypted SSL Checkout
             </p>
           </OrderSummary>
         </div>
@@ -305,19 +305,19 @@ export default function Checkout() {
 }
 
 const inputCls = (err) =>
-  `w-full border bg-white px-3.5 py-2.5 text-xs font-semibold outline-none transition duration-150 rounded-none ${
+  `w-full border bg-white px-3.5 py-3 text-xs font-semibold outline-none transition duration-150 rounded-none ${
     err
-      ? 'border-rose-400 focus:border-rose-500'
-      : 'border-neutral-200 focus:border-black'
+      ? 'border-rose-400 focus:border-rose-500 focus:ring-1 focus:ring-rose-500'
+      : 'border-neutral-200 focus:border-black focus:ring-1 focus:ring-black'
   }`
 
 const formatCard = (v) => v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim()
 
 function Section({ step, title, children }) {
   return (
-    <section className="border border-neutral-200/60 bg-white p-6">
-      <h2 className="mb-5 flex items-center gap-2.5 text-xs font-extrabold text-neutral-900 uppercase tracking-wider select-none">
-        <span className="grid h-5 w-5 place-items-center bg-black text-white text-[9px] font-bold">{step}</span>
+    <section className="border border-neutral-200/90 bg-white p-6 shadow-xs">
+      <h2 className="mb-5 flex items-center gap-2.5 text-xs font-black text-neutral-950 uppercase tracking-[0.16em] select-none">
+        <span className="grid h-5 w-5 place-items-center bg-neutral-950 text-white text-[9px] font-black">{step}</span>
         {title}
       </h2>
       <div className="grid gap-4 sm:grid-cols-2">{children}</div>

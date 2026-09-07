@@ -49,12 +49,12 @@ export default function Wishlist() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 bg-white">
-      <p className="text-[10px] font-extrabold uppercase tracking-[0.25em] text-neutral-400">Saved for later</p>
-      <h1 className="mt-1.5 text-3xl font-extrabold uppercase tracking-tight text-neutral-900">My Wishlist</h1>
+      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">SAVED FOR LATER</p>
+      <h1 className="mt-1.5 text-3xl font-black uppercase tracking-tight text-neutral-950">My Wishlist</h1>
       <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
         {items.length} saved item{items.length !== 1 && 's'}
       </p>
-      <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-11 sm:gap-x-6 md:grid-cols-3 lg:grid-cols-4 xl:gap-x-7">
         {items.map((p) => (
           <ProductCard key={p.id} product={p} />
         ))}

@@ -15,9 +15,20 @@ export default function AnnouncementBar() {
 
   const [index, setIndex] = useState(0)
 
-  // Auto-rotate through the bars. The active bar's autoRotateSeconds sets the
-  // cadence. Only runs when there is more than one bar.
-  const current = bars.length ? bars[index % bars.length] : null
+  const defaultBar = useMemo(
+    () => ({
+      id: 'default-bar',
+      message: 'GUARANTEED RETURNS & EXCHANGES! · FREE SHIPPING OVER $75',
+      backgroundColor: '#0a0a0a',
+      textColor: '#ffffff',
+      textAlign: 'center',
+      linkText: 'NEW PRODUCTS →',
+      linkUrl: '/shop',
+    }),
+    []
+  )
+
+  const current = bars.length ? bars[index % bars.length] : defaultBar
   const rotateMs = Math.max(2, Number(current?.autoRotateSeconds) || 5) * 1000
 
   useEffect(() => {
