@@ -30,6 +30,11 @@ export function useNotificationFeed({ enabled = true, api, params = {}, pollMs =
   const enabledRef = useRef(enabled)
   useEffect(() => { enabledRef.current = enabled }, [enabled])
 
+  // Mirror of `items` for synchronous dedupe in prepend() (see below), without
+  // making prepend depend on / re-create with every list change.
+  const itemsRef = useRef(items)
+  useEffect(() => { itemsRef.current = items }, [items])
+
   // Serialize filter params into a stable dependency key.
   const paramsKey = JSON.stringify(params || {})
   const paramsRef = useRef(params)
@@ -121,6 +126,19 @@ export function useNotificationFeed({ enabled = true, api, params = {}, pollMs =
     }
   }, [])
 
+  // Inject a notification pushed in real time over the socket. Deduped by id
+  // (via itemsRef) so a socket push that races the poll can't show the same item
+  // twice or double-count the badge; the setters stay top-level and pure. Any
+  // transient drift is reconciled by the next unread-count poll.
+  const prepend = useCallback((n) => {
+    if (!n || !n.id) return
+    if (itemsRef.current.some((x) => x.id === n.id)) return
+    itemsRef.current = [n, ...itemsRef.current]
+    setItems((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev]))
+    setTotal((t) => t + 1)
+    if (!n.isRead) setUnread((c) => c + 1)
+  }, [])
+
   const remove = useCallback(async (id) => {
     let wasUnread = false
     setItems((prev) => prev.filter((n) => {
@@ -139,8 +157,8 @@ export function useNotificationFeed({ enabled = true, api, params = {}, pollMs =
   return useMemo(
     () => ({
       unread, items, loading, loadingMore, error, hasMore, total, page,
-      refresh, loadMore, markRead, markAllRead, remove, setUnread, setItems,
+      refresh, loadMore, markRead, markAllRead, remove, prepend, setUnread, setItems,
     }),
-    [unread, items, loading, loadingMore, error, hasMore, total, page, refresh, loadMore, markRead, markAllRead, remove],
+    [unread, items, loading, loadingMore, error, hasMore, total, page, refresh, loadMore, markRead, markAllRead, remove, prepend],
   )
 }

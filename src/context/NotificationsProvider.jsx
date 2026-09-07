@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { NotificationsContext } from './notificationsContext'
 import { useAuth } from './useAuth'
 import { useNotificationFeed } from '../lib/useNotificationFeed'
+import { useNotificationSocket } from '../lib/useNotificationSocket'
 import {
   listMyNotifications,
   getMyUnreadCount,
@@ -27,6 +28,15 @@ export function NotificationsProvider({ children }) {
   )
 
   const feed = useNotificationFeed({ enabled: isAuthenticated, api })
+
+  // Real-time push: drop incoming customer notifications straight into the feed.
+  // (An admin's socket also carries admin-role notifications — ignore those here;
+  // the admin provider handles them.)
+  const onNotification = useCallback(
+    (n) => { if (n?.recipientRole !== 'admin') feed.prepend(n) },
+    [feed],
+  )
+  useNotificationSocket({ enabled: isAuthenticated, onNotification })
 
   const value = useMemo(() => ({ ...feed, isAuthenticated }), [feed, isAuthenticated])
 

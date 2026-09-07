@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useCallback } from 'react'
 import { AdminNotificationsContext } from './adminNotificationsContext'
 import { useAuth } from './useAuth'
 import { useNotificationFeed } from '../lib/useNotificationFeed'
+import { useNotificationSocket } from '../lib/useNotificationSocket'
 import {
   listAdminNotifications,
   getAdminUnreadCount,
@@ -28,6 +29,14 @@ export function AdminNotificationsProvider({ children }) {
   )
 
   const feed = useNotificationFeed({ enabled: isAdmin, api })
+
+  // Real-time push for the admin header badge/feed. Only admin-role notifications
+  // belong in this inbox; the storefront provider handles the customer ones.
+  const onNotification = useCallback(
+    (n) => { if (n?.recipientRole === 'admin') feed.prepend(n) },
+    [feed],
+  )
+  useNotificationSocket({ enabled: isAdmin, onNotification })
 
   return <AdminNotificationsContext.Provider value={feed}>{children}</AdminNotificationsContext.Provider>
 }
